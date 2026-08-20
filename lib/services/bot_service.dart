@@ -120,19 +120,44 @@ class BotService extends ChangeNotifier {
     }
   }
 
-  void startPolling({String? tradingMode, Duration interval = const Duration(seconds: 5)}) {
+  void startPolling({String? tradingMode, Duration interval = const Duration(seconds: 2)}) {
     final mode = tradingMode ?? _lastTradingMode;
     _pollTimer?.cancel();
     // Don't skip polling due to auth state - let _fetchActiveBotsInternal handle auth errors
     _pollTimer = Timer.periodic(interval, (_) {
       fetchActiveBots(tradingMode: mode);
       fetchActiveTrades();
+      _checkAutoExits();
     });
   }
 
   void stopPolling() {
     _pollTimer?.cancel();
     _pollTimer = null;
+  }
+
+  /// Evaluate auto-exit rules and emit alerts for positions that should close.
+  void _checkAutoExits() {
+    if (_riskService == null || _activeTrades.isEmpty) return;
+
+    final toExit = _riskService!.evaluateAllForExit(
+      _activeTrades.where((t) => t.status == TradeStatus.open).toList(),
+    );
+
+    for (final trade in toExit) {
+      debugPrint('AUTO-EXIT: ${trade.symbol} trade ${trade.id} flagged for exit');
+      _alertService?.emitAlert(
+        TradingSignal(
+          symbol: trade.symbol,
+          type: SignalType.close,
+          source: SignalSource.machineLearning,
+          confidence: 0.5,
+          price: trade.entryPrice ?? 0,
+        ),
+        customMessage: 'Auto-exit: ${trade.symbol} ${trade.profitPercentage != null ? 'P&L ${trade.profitPercentage}% ' : ''}(profit: \$${trade.profit?.toStringAsFixed(2) ?? '0.00'})',
+        pushToBackend: true,
+      );
+    }
   }
 
   // Fallback list for Exness / MT5 symbols when backend data is not yet loaded.

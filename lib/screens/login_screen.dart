@@ -40,6 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
     _firstNameController = TextEditingController();
     _lastNameController = TextEditingController();
     _referralCodeController = TextEditingController();
+    _loadRememberedUsername();
   }
 
   @override
@@ -395,6 +396,18 @@ class _LoginScreenState extends State<LoginScreen> {
     );
   }
 
+  // Auto-fill remembered username on init
+  Future<void> _loadRememberedUsername() async {
+    final authService = Provider.of<AuthService>(context, listen: false);
+    await authService.ensureInitialized();
+    final remembered = authService.rememberedUsername;
+    if (remembered != null && remembered.isNotEmpty) {
+      _usernameController.text = remembered;
+      _rememberMe = true;
+      if (mounted) setState(() {});
+    }
+  }
+
   // Build login/register form
   Widget _buildLoginRegisterForm(AppLocalizations loc) => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -691,6 +704,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final success = await authService.login(
         _usernameController.text.trim(),
         _passwordController.text,
+        rememberMe: _rememberMe,
       );
       if (success && mounted) {
         // Check if 2FA is required

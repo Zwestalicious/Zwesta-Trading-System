@@ -16755,8 +16755,7 @@ def get_open_trades():
                 conn.close()
 
             if not trades_list:
-                from brokerage import broker_manager as _bm
-                for cred_id, conn_entry in _bm.connections.items():
+                for cred_id, conn_entry in broker_manager.connections.items():
                     pass
             return trades_list
 

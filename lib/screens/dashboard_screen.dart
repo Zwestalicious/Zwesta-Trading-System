@@ -1287,8 +1287,8 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               ),
             ],
           ),
-        ),
-        const SizedBox(height: 12),
+                    ),
+                    const SizedBox(height: 12),
         if (selectedAccounts.isEmpty)
           _glassCard(
             child: Text(
@@ -1881,7 +1881,10 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         ),
                       ],
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
+                    // Connection status and position age
+                    _buildBotStatusRow(bot, botId, botMode),
+                    const SizedBox(height: 4),
                     if (strategySelectionSummary != null || lastStrategySwitchSummary != null || sizingSummary != null || pyramidSummary != null) ...[
                       Container(
                         width: double.infinity,
@@ -2314,6 +2317,37 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            // Backend connection status banner
+            Consumer<BotService>(
+              builder: (context, botService, _) {
+                final connected = botService.isConnected;
+                final error = botService.errorMessage;
+                if (!connected && error != null) {
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFF5252).withOpacity(0.15),
+                      border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.5)),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.error, color: Color(0xFFFF5252), size: 20),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Backend disconnected: $error',
+                            style: GoogleFonts.poppins(color: Colors.white70, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                }
+                return const SizedBox.shrink();
+              },
+            ),
             // Error banner if refresh failures detected
             if (_refreshFailureCount > 0)
               Container(
@@ -3625,6 +3659,117 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         ),
       ],
     );
+  }
+
+  Widget _buildBotStatusRow(Map<String, dynamic> bot, String botId, String botMode) {
+    final openPositions = bot['openPositions'];
+    final positionCount = openPositions is List
+        ? openPositions.length
+        : (openPositions is Map ? openPositions.length : 0);
+    final hasPositions = positionCount > 0;
+    final isRunning = bot['isRunning'] == true || bot['enabled'] == true;
+    final lastTrade = bot['lastTradeTime']?.toString();
+    final ageStr = _computePositionAge(bot);
+    final brokerName = (bot['brokerName'] ?? bot['broker_type'] ?? 'MT5').toString();
+
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: isRunning
+                ? const Color(0xFF69F0AE).withOpacity(0.15)
+                : const Color(0xFFFF8A80).withOpacity(0.15),
+            borderRadius: BorderRadius.circular(6),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isRunning ? Icons.circle : Icons.stop,
+                size: 8,
+                color: isRunning ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                isRunning ? 'Running' : 'Stopped',
+                style: GoogleFonts.poppins(
+                  color: isRunning ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        if (hasPositions) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.08),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '$positionCount ${positionCount == 1 ? 'position' : 'positions'} • $brokerName',
+              style: GoogleFonts.poppins(color: Colors.white60, fontSize: 10),
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
+        if (ageStr.isNotEmpty)
+          Text(
+            'Age: $ageStr',
+            style: GoogleFonts.poppins(color: Colors.white54, fontSize: 10),
+          ),
+        const Spacer(),
+        if (lastTrade != null)
+          Text(
+            'Last: ${_formatTimestamp(lastTrade)}',
+            style: GoogleFonts.poppins(color: Colors.white54, fontSize: 10),
+          ),
+      ],
+    );
+  }
+
+  String _computePositionAge(Map<String, dynamic> bot) {
+    final openPositions = bot['openPositions'];
+    DateTime? oldestTime;
+    if (openPositions is List) {
+      for (final pos in openPositions) {
+        if (pos is Map) {
+          final t = pos['openedAt'] ?? pos['time_open'] ?? pos['openTime'];
+          if (t != null) {
+            final dt = DateTime.tryParse(t.toString());
+            if (dt != null && (oldestTime == null || dt.isBefore(oldestTime))) {
+              oldestTime = dt;
+            }
+          }
+        }
+      }
+    } else if (openPositions is Map) {
+      for (final pos in openPositions.values) {
+        if (pos is Map) {
+          final t = pos['openedAt'] ?? pos['time_open'] ?? pos['openTime'];
+          if (t != null) {
+            final dt = DateTime.tryParse(t.toString());
+            if (dt != null && (oldestTime == null || dt.isBefore(oldestTime))) {
+              oldestTime = dt;
+            }
+          }
+        }
+      }
+    }
+    if (oldestTime == null) return '';
+    final diff = DateTime.now().difference(oldestTime);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h ${diff.inMinutes % 60}m';
+    return '${diff.inDays}d ${diff.inHours % 24}h';
+  }
+
+  String _formatTimestamp(String ts) {
+    final dt = DateTime.tryParse(ts);
+    if (dt == null) return ts;
+    return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
   }
 
   Widget _buildStatPill(IconData icon, String value, String label, Color color, {double valueFontSize = 20}) => _glassCard(

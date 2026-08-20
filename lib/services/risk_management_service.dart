@@ -108,6 +108,10 @@ class RiskLimits {
   final double minAccountEquity;
   final double minPositionSize;
   final double maxPositionSize;
+  final double autoTakeProfitPercent;
+  final double autoStopLossPercent;
+  final Duration maxHoldTime;
+  final Duration staleThreshold;
 
   const RiskLimits({
     this.maxContractsPerSymbol = 5,
@@ -117,6 +121,10 @@ class RiskLimits {
     this.minAccountEquity = 100.0,
     this.minPositionSize = 0.01,
     this.maxPositionSize = 1.0,
+    this.autoTakeProfitPercent = 50.0,
+    this.autoStopLossPercent = 25.0,
+    this.maxHoldTime = const Duration(hours: 24),
+    this.staleThreshold = const Duration(minutes: 30),
   });
 
   Map<String, dynamic> toJson() => {
@@ -127,6 +135,10 @@ class RiskLimits {
         'minAccountEquity': minAccountEquity,
         'minPositionSize': minPositionSize,
         'maxPositionSize': maxPositionSize,
+        'autoTakeProfitPercent': autoTakeProfitPercent,
+        'autoStopLossPercent': autoStopLossPercent,
+        'maxHoldTimeHours': maxHoldTime.inHours,
+        'staleThresholdMinutes': staleThreshold.inMinutes,
       };
 
   factory RiskLimits.fromJson(Map<String, dynamic> json) => RiskLimits(
@@ -137,6 +149,10 @@ class RiskLimits {
         minAccountEquity: (json['minAccountEquity'] as num?)?.toDouble() ?? 100.0,
         minPositionSize: (json['minPositionSize'] as num?)?.toDouble() ?? 0.01,
         maxPositionSize: (json['maxPositionSize'] as num?)?.toDouble() ?? 1.0,
+        autoTakeProfitPercent: (json['autoTakeProfitPercent'] as num?)?.toDouble() ?? 50.0,
+        autoStopLossPercent: (json['autoStopLossPercent'] as num?)?.toDouble() ?? 25.0,
+        maxHoldTime: Duration(hours: (json['maxHoldTimeHours'] as num?)?.toInt() ?? 24),
+        staleThreshold: Duration(minutes: (json['staleThresholdMinutes'] as num?)?.toInt() ?? 30),
       );
 }
 
@@ -732,7 +748,74 @@ class RiskManagementService extends ChangeNotifier {
     }
     return sum;
   }
+
+  /// Result of evaluating auto-exit rules for a single open trade.
+  bool shouldAutoExit(Trade trade) {
+    if (trade.status != TradeStatus.open) return false;
+
+    final now = DateTime.now();
+    final age = now.difference(trade.openedAt);
+
+    // 1. Profit target reached
+    if (trade.profitPercentage != null &&
+        trade.profitPercentage! >= _limits.autoTakeProfitPercent) {
+      debugPrint('AUTO-EXIT: ${trade.symbol} hit take-profit threshold '
+          '${_limits.autoTakeProfitPercent}% (current: ${trade.profitPercentage}%)');
+      return true;
+    }
+
+    // 2. Stop-loss triggered
+    if (trade.profitPercentage != null &&
+        trade.profitPercentage! <= -_limits.autoStopLossPercent) {
+      debugPrint('AUTO-EXIT: ${trade.symbol} hit stop-loss threshold '
+          '${_limits.autoStopLossPercent}% (current: ${trade.profitPercentage}%)');
+      return true;
+    }
+
+    // 3. Max hold time exceeded
+    if (age > _limits.maxHoldTime) {
+      debugPrint('AUTO-EXIT: ${trade.symbol} exceeded max hold time '
+          '${_limits.maxHoldTime.inHours}h (open ${age.inHours}h)');
+      return true;
+    }
+
+    // 4. Stale position (P&L unchanged for threshold)
+    if (_isStale(trade, now)) {
+      debugPrint('AUTO-EXIT: ${trade.symbol} P&L unchanged for '
+          '${_limits.staleThreshold.inMinutes}min (profit: \$${trade.profit})');
+      return true;
+    }
+
+    return false;
+  }
+
+  final Map<String, _StaleTracker> _staleTrackers = {};
+
+  bool _isStale(Trade trade, DateTime now) {
+    final key = trade.id ?? '${trade.symbol}_${trade.openedAt.millisecondsSinceEpoch}';
+    final tracker = _staleTrackers[key] ?? _StaleTracker();
+    final currentProfit = trade.profit ?? 0.0;
+
+    if (currentProfit != tracker.lastProfit) {
+      tracker.lastProfit = currentProfit;
+      tracker.lastChangeTime = now;
+      _staleTrackers[key] = tracker;
+      return false;
+    }
+
+    return now.difference(tracker.lastChangeTime) > _limits.staleThreshold;
+  }
+
+  /// Evaluate all open trades and return those that should be auto-exited.
+  List<Trade> evaluateAllForExit(List<Trade> trades) {
+    return trades.where(shouldAutoExit).toList();
+  }
 }
 
 /// Module-level singleton for convenience access.
 final riskManagementService = RiskManagementService();
+
+class _StaleTracker {
+  double lastProfit = 0.0;
+  DateTime lastChangeTime = DateTime.now();
+}

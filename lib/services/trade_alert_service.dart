@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../models/trade.dart';
 import '../models/trading_signal.dart';
 import '../utils/environment_config.dart';
 
@@ -233,6 +234,74 @@ class TradeAlertService extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('TradeAlertService: refresh failed: $e');
+    }
+  }
+
+  /// Scan [trades] for stale positions and emit alerts.
+  ///
+  /// A position is considered stale when its P&L has been unchanged for
+  /// longer than [staleThreshold] (default 30 minutes) or when the trade
+  /// has been open longer than [maxOpenDuration] (default 24 hours).
+  Future<void> detectStalePositions(
+    List<Trade> trades, {
+    Duration staleThreshold = const Duration(minutes: 30),
+    Duration maxOpenDuration = const Duration(hours: 24),
+  }) async {
+    final now = DateTime.now();
+    final openTrades = trades.where((t) => t.status == TradeStatus.open).toList();
+
+    for (final trade in openTrades) {
+      final openedAt = trade.openedAt;
+      if (openedAt == null) continue;
+
+      // Stale P&L detection
+      final profit = trade.profit ?? 0.0;
+      final lastCheckKey = 'stale_${trade.id}_profit';
+      final lastCheckTimeKey = 'stale_${trade.id}_time';
+      final prefs = await SharedPreferences.getInstance();
+      final lastProfit = prefs.getDouble(lastCheckKey);
+      final lastCheckTimeStr = prefs.getString(lastCheckTimeKey);
+
+      if (lastProfit == profit && lastProfit != null) {
+        final lastCheckTime = lastCheckTimeStr != null
+            ? DateTime.tryParse(lastCheckTimeStr)
+            : null;
+        if (lastCheckTime != null && now.difference(lastCheckTime) > staleThreshold) {
+          final age = now.difference(openedAt);
+          await emitAlert(
+            TradingSignal(
+              symbol: trade.symbol,
+              type: SignalType.close,
+              source: SignalSource.machineLearning,
+              confidence: 0.3,
+              price: trade.entryPrice ?? 0,
+            ),
+            customMessage: 'Position ${trade.symbol} P&L unchanged for '
+                '${lastCheckTime != null ? (now.difference(lastCheckTime).inMinutes).toString() : '?'} '
+                'minutes (profit: \$${profit.toStringAsFixed(2)}, age: ${age.inHours}h ${age.inMinutes % 60}m)',
+            pushToBackend: true,
+          );
+        }
+      } else {
+        await prefs.setDouble(lastCheckKey, profit);
+        await prefs.setString(lastCheckTimeKey, now.toIso8601String());
+      }
+
+      // Max open duration detection
+      if (now.difference(openedAt) > maxOpenDuration) {
+        await emitAlert(
+          TradingSignal(
+            symbol: trade.symbol,
+            type: SignalType.close,
+            source: SignalSource.machineLearning,
+            confidence: 0.4,
+            price: trade.entryPrice ?? 0,
+          ),
+          customMessage: 'Position ${trade.symbol} open for '
+              '${now.difference(openedAt).inHours} hours — exceeds max open duration',
+          pushToBackend: true,
+        );
+      }
     }
   }
 

@@ -45,6 +45,24 @@ class AuthService extends ChangeNotifier {
     await _prefs!.setString('current_user', jsonEncode(_currentUser!.toJson()));
   }
 
+  Future<void> _saveRememberedCredentials(String username, String password, bool rememberMe) async {
+    if (_prefs == null) {
+      _prefs = await SharedPreferences.getInstance();
+      if (_prefs == null) return;
+    }
+    if (rememberMe) {
+      await _prefs!.setString('remembered_username', username);
+      await _prefs!.setBool('remember_me', true);
+    } else {
+      await _prefs!.remove('remembered_username');
+      await _prefs!.remove('remember_me');
+    }
+  }
+
+  String? _rememberedUsername;
+  bool get rememberMe => _prefs?.getBool('remember_me') ?? false;
+  String? get rememberedUsername => _rememberedUsername ??= _prefs?.getString('remembered_username');
+
   void clearError() {
     _errorMessage = null;
     _successMessage = null;
@@ -108,7 +126,7 @@ class AuthService extends ChangeNotifier {
     }
   }
 
-  Future<bool> login(String username, String password) async {
+  Future<bool> login(String username, String password, {bool rememberMe = false}) async {
     await ensureInitialized();
     _isLoading = true;
     _errorMessage = null;
@@ -269,8 +287,9 @@ class AuthService extends ChangeNotifier {
         );
 
         final referralCode = data['referral_code'] ?? '';
-        await _saveCredentials();
-        _isLoading = false;
+          await _saveCredentials();
+          await _saveRememberedCredentials(username, password, rememberMe);
+          _isLoading = false;
         _errorMessage = null;
         _successMessage = 'Registration successful! Your referral code: $referralCode';
         notifyListeners();
