@@ -1079,10 +1079,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       if (mounted) {
         setState(() {
           _realBotsList = fetchedBots;
-           print('[DEBUG] Loaded ${_realBotsList.length} bots from backend');
         });
       }
-       await _persistCachedBots(fetchedBots);
+      await _persistCachedBots(fetchedBots);
     } catch (e, st) {
       // Don't wipe existing bot data on refresh errors - preserve previous data
       print('[DEBUG] Bot refresh error (keeping previous data): $e');
