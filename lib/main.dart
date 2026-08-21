@@ -233,6 +233,13 @@ class _AuthWrapperState extends State<AuthWrapper> {
   }
 
   Future<void> _checkOnboardingStatus() async {
+    // Ensure auth service is initialized to restore saved session
+    try {
+      final authService = Provider.of<AuthService>(context, listen: false);
+      await authService.ensureInitialized();
+    } catch (e) {
+      debugPrint('Auth init error: $e');
+    }
     final prefs = await SharedPreferences.getInstance();
     if (mounted) {
       setState(() {

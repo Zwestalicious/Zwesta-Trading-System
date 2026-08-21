@@ -262,18 +262,24 @@ class BotService extends ChangeNotifier {
     }
 
     try {
+      debugPrint('🔍 _fetchActiveBotsInternal start | force=$force mode=$mode includeHistory=$includeHistory');
+      debugPrint('🔍 _apiUrl=$_apiUrl _isConnected=$_isConnected');
       if (!_isConnected) {
+        debugPrint('🔍 Backend not connected, checking...');
         await _checkBackendConnection();
+        debugPrint('🔍 After check: _isConnected=$_isConnected');
       }
 
       // Get user_id from SharedPreferences
       final userId = prefs.getString('user_id');
       final sessionToken = prefs.getString('auth_token');
+      debugPrint('🔍 SharedPreferences user_id=$userId tokenPresent=${sessionToken != null && sessionToken.isNotEmpty}');
       _lastTradingMode = mode;
 
       // Avoid hammering protected endpoints without auth header.
       // Let future requests retry - don't permanently disable polling
       if (sessionToken == null || sessionToken.isEmpty) {
+        debugPrint('🔍 ERROR: Session token missing from SharedPreferences!');
         _isLoading = false;
         _errorMessage = 'Session token missing. Please login again.';
         notifyListeners();
@@ -293,6 +299,7 @@ class BotService extends ChangeNotifier {
       if (userId != null && userId.isNotEmpty) {
         url += '&user_id=$userId';
       }
+      debugPrint('🔍 Fetching bots from: $url');
 
       final response = await http.get(
         Uri.parse(url),
@@ -300,10 +307,14 @@ class BotService extends ChangeNotifier {
           'Content-Type': 'application/json',
           'X-Session-Token': sessionToken,
         },
-      ).timeout(const Duration(seconds: 10));
+      ).timeout(const Duration(seconds: 15));
 
+      debugPrint('🔍 Response status: ${response.statusCode} bodyLen=${response.body.length}');
+      if (response.statusCode != 200) {
+        debugPrint('🔍 Non-200 response body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+      }
       if (response.statusCode == 200) {
-        _authPollingDisabled = false; // Reset on successful fetch
+        _authPollingDisabled = false;
         final data = jsonDecode(response.body);
         if (data['success'] == true) {
           final fetchedBots = List<Map<String, dynamic>>.from(data['bots'] ?? []);
