@@ -4177,21 +4177,21 @@ if (profile == 'beginner') {
               ),
               child: Row(
                 children: [
-                  Image.asset(
-                    'assets/images/bot_rental.png',
-                    height: 100,
-                    width: 100,
-                    fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) => Container(
-                      height: 100,
-                      width: 100,
-                      color: Colors.grey[800],
-                      child: const Icon(
-                        Icons.image_not_supported,
-                        color: Colors.grey,
-                      ),
-                    ),
-                  ),
+                   Image.asset(
+                     'assets/images/bot_rental.png',
+                     height: 100,
+                     width: 100,
+                     fit: BoxFit.contain,
+                     errorBuilder: (context, error, stackTrace) => Container(
+                       height: 100,
+                       width: 100,
+                       color: Colors.grey[800],
+                       child: const Icon(
+                         Icons.image_not_supported,
+                         color: Colors.grey,
+                       ),
+                     ),
+                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
