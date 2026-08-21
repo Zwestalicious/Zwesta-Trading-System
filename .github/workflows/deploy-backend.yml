@@ -18,8 +18,8 @@ name: Deploy Backend to VPS
 on:
   push:
     branches: [ main ]
-     paths:
-       - 'multi_broker_backend_updated.py'
+    paths:
+      - 'multi_broker_backend_updated.py'
        - 'postgres_schema.py'
        - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
