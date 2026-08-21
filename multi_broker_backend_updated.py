@@ -3493,19 +3493,33 @@ def warm_up_mt5_terminal(mt5_path: str, account: int, password: str, server: str
         attempt += 1
         try:
             if DEPLOYMENT_MODE == 'VPS':
-                logger.info(f"[STARTUP] MT5 warm-up attempt {attempt}: attached-session account={account} server={server}")
-                init_ok = mt5.initialize(login=int(account), password=str(password), server=str(server))
+                if MT5_AUTO_LAUNCH:
+                    logger.info(f"[STARTUP] MT5 warm-up attempt {attempt}: path={mt5_path} account={account} server={server}")
+                    init_ok = mt5.initialize(path=mt5_path, login=int(account), password=str(password), server=str(server))
+                else:
+                    logger.info(f"[STARTUP] MT5 warm-up attempt {attempt}: probing existing session (no credentials) server={server}")
+                    init_ok = mt5.initialize()
+                if init_ok:
+                    acct = mt5.account_info()
+                    if acct:
+                        logger.info(f"[STARTUP] ✅ MT5 warm-up successful: Account {acct.login}, Balance {float(getattr(acct, 'balance', 0)):.2f}")
+                        if int(account) and int(acct.login) != int(account):
+                            logger.warning(f"[STARTUP] ⚠️ Warm-up account {acct.login} does not match expected {account} — using running terminal session")
+                        return True
+                    last_error = ('account_info', 'MT5 initialized but account_info returned None')
+                else:
+                    last_error = mt5.last_error()
             else:
                 logger.info(f"[STARTUP] MT5 warm-up attempt {attempt}: path={mt5_path} account={account} server={server}")
                 init_ok = mt5.initialize(path=mt5_path, login=int(account), password=str(password), server=str(server))
-            if init_ok:
-                acct = mt5.account_info()
-                if acct:
-                    logger.info(f"[STARTUP] ✅ MT5 warm-up successful: Account {acct.login}, Balance {float(getattr(acct, 'balance', 0)):.2f}")
-                    return True
-                last_error = ('account_info', 'MT5 initialized but account_info returned None')
-            else:
-                last_error = mt5.last_error()
+                if init_ok:
+                    acct = mt5.account_info()
+                    if acct:
+                        logger.info(f"[STARTUP] ✅ MT5 warm-up successful: Account {acct.login}, Balance {float(getattr(acct, 'balance', 0)):.2f}")
+                        return True
+                    last_error = ('account_info', 'MT5 initialized but account_info returned None')
+                else:
+                    last_error = mt5.last_error()
         except Exception as exc:
             last_error = str(exc)
 
@@ -16755,8 +16769,39 @@ def get_open_trades():
                 conn.close()
 
             if not trades_list:
-                for cred_id, conn_entry in broker_manager.connections.items():
-                    pass
+                cached_positions = get_cached_mt5_positions(user_id)
+                for pos in cached_positions:
+                    trade_ticket = str(pos.get('ticket') or pos.get('position') or pos.get('positionId') or '').strip()
+                    if not trade_ticket:
+                        continue
+                    trade = {
+                        'trade_id': trade_ticket,
+                        'bot_id': pos.get('bot_id', ''),
+                        'user_id': user_id,
+                        'symbol': pos.get('symbol', pos.get('instrument', '')),
+                        'order_type': 'buy' if str(pos.get('type', pos.get('direction', ''))).lower() in ('0', 'buy', '1', 'long') else 'sell',
+                        'volume': _safe_float(pos.get('volume', pos.get('size', 0)), 0.0),
+                        'price': _safe_float(pos.get('entryPrice', pos.get('openPrice', pos.get('price', 0))), 0.0),
+                        'profit': _safe_float(pos.get('profit', pos.get('pnl', pos.get('profit_loss', pos.get('unrealizedPL', 0)))), 0.0),
+                        'commission': _safe_float(pos.get('commission', 0), 0.0),
+                        'swap': _safe_float(pos.get('swap', 0), 0.0),
+                        'ticket': trade_ticket,
+                        'time_open': pos.get('openTime', pos.get('entryTime', '')),
+                        'time_close': None,
+                        'status': 'open',
+                        'created_at': pos.get('openTime', pos.get('entryTime', datetime.now().isoformat())),
+                        'updated_at': datetime.now().isoformat(),
+                        'userId': user_id,
+                        'source': 'mt5-cached',
+                        'currentPrice': _safe_float(pos.get('currentPrice', pos.get('level', pos.get('openPrice', pos.get('price', 0)))), 0.0),
+                        'currency': pos.get('displayCurrency', pos.get('currency', 'USD')),
+                        'entryPrice': _safe_float(pos.get('entryPrice', pos.get('openPrice', pos.get('price', 0))), 0.0),
+                        'stopLoss': _safe_float(pos.get('stopLoss', 0), 0.0),
+                        'takeProfit': _safe_float(pos.get('takeProfit', 0), 0.0),
+                        'profitPercentage': _safe_float(pos.get('profitPercent', pos.get('pnlPercentage', pos.get('roiPct', 0))), 0.0),
+                        'accountKey': pos.get('accountKey', ''),
+                    }
+                    trades_list.append(trade)
             return trades_list
 
         try:
@@ -31780,6 +31825,13 @@ bot_stop_flags = {} # {bot_id: stop_requested}
 bot_start_pending = {}  # {bot_id: epoch_seconds} - bot marked running but thread not yet alive
 bot_start_locks = {}  # {bot_id: threading.Lock()} — prevents duplicate thread spawning on concurrent /start requests
 bot_start_locks_lock = threading.Lock()  # protects access to bot_start_locks dict
+
+# Live MT5 position cache — periodically synced so /api/trades/open
+# can return positions without acquiring the MT5 lock on every request.
+# Structure: {user_id: {account_key: [position_dicts]}}
+_live_mt5_position_cache = {}
+_live_mt5_position_cache_lock = threading.Lock()
+_live_mt5_position_cache_time = {}  # {user_id: datetime}
 
 # User-level emergency kill switch. When active, every bot owned by the user
 # halts at the next loop iteration and start_bot rejects new starts until cleared.
@@ -50554,6 +50606,8 @@ def bot_summary():
 
             bots_list.append({
                 'botId': bot.get('botId', 'unknown'),
+                'userId': user_id,
+                'user_id': user_id,
                 'symbol': primary_symbol,
                 'symbols': symbols,
                 'strategy': bot.get('strategy', 'Unknown'),
@@ -50779,6 +50833,8 @@ def bot_summary():
 
                 bots_list.append({
                     'botId': bot_id,
+                    'userId': user_id,
+                    'user_id': user_id,
                     'symbol': primary_symbol,
                     'symbols': symbols,
                     'strategy': row['strategy'] or row['name'] or 'Unknown',
@@ -59418,6 +59474,131 @@ def _serve_http():
         logger.error(f"Fatal error in HTTP server thread: {e}")
 
 
+# ==================== MT5 POSITION SYNC CACHE ====================
+
+def _sync_mt5_position_cache():
+    """Background thread that periodically fetches live MT5 positions and caches them.
+
+    This allows /api/trades/open and /api/bot/summary to return live positions
+    without blocking on the MT5 connection lock during API requests.
+    """
+    import time as _time
+    cache_ttl = 15  # seconds
+    while True:
+        try:
+            _sync_mt5_positions_for_active_bots()
+        except Exception as e:
+            logger.debug(f"MT5 position cache sync error: {e}")
+        _time.sleep(cache_ttl)
+
+
+def _sync_mt5_positions_for_active_bots():
+    """Fetch open positions from MT5 for each active bot's credentials and cache them."""
+    from datetime import datetime
+    now = datetime.now()
+    synced_count = 0
+
+    for bot_id, bot in list(active_bots.items()):
+        try:
+            user_id = bot.get('user_id') or bot.get('userId') or ''
+            # If bot has no user_id, use bot_id as the cache key fallback
+            if not user_id:
+                user_id = f"__bot__:{bot_id}"
+
+            broker_name = canonicalize_broker_name(
+                bot.get('brokerName') or bot.get('broker_type') or bot.get('broker') or ''
+            )
+            if broker_name not in ('Exness', 'MetaTrader5', 'XM', 'Octa'):
+                continue
+
+            account_number = str(
+                bot.get('accountNumber') or bot.get('account_number') or ''
+            ).strip()
+            if not account_number:
+                continue
+
+            cache_key = f"{broker_name}:{account_number}"
+
+            # Look up the actual credential_id from the database, since
+            # get_broker_connection expects a UUID credential_id, not "Broker:account".
+            credential_id = None
+            try:
+                conn = build_sqlite_connection(wal=False)
+                cursor = conn.cursor()
+                cursor.execute(
+                    'SELECT credential_id FROM bot_credentials WHERE bot_id = ?',
+                    (str(bot_id),)
+                )
+                row = cursor.fetchone()
+                if row:
+                    credential_id = row[0]
+                conn.close()
+            except Exception as db_exc:
+                logger.warning(f"MT5 cache sync: credential lookup failed for bot {bot_id}: {db_exc}")
+
+            if not credential_id:
+                # Fall back to bot_config's credentialId or the cache_key format
+                credential_id = bot.get('credentialId') or bot.get('credential_id') or cache_key
+
+            conn_label, broker_conn = get_broker_connection(
+                credential_id, user_id, bot_id=f'cache-sync:{bot_id}'
+            )
+            if not broker_conn:
+                continue
+
+            try:
+                positions = broker_conn.get_positions() or []
+                with _live_mt5_position_cache_lock:
+                    if user_id not in _live_mt5_position_cache:
+                        _live_mt5_position_cache[user_id] = {}
+                    _live_mt5_position_cache[user_id][cache_key] = positions
+                    _live_mt5_position_cache_time[user_id] = now
+                synced_count += len(positions)
+            except Exception as e:
+                logger.debug(f"MT5 position sync: get_positions failed for {bot_id}: {e}")
+        except Exception as e:
+            logger.debug(f"MT5 position sync: bot {bot_id} failed: {e}")
+
+    if synced_count > 0:
+        logger.debug(f"MT5 position cache synced: {synced_count} positions across active bots")
+
+
+def get_cached_mt5_positions(user_id: str) -> List[Dict[str, Any]]:
+    """Return cached MT5 positions for a user (fast, no MT5 lock needed)."""
+    with _live_mt5_position_cache_lock:
+        cache = _live_mt5_position_cache.get(user_id, {})
+        positions = []
+        for acct_key, pos_list in cache.items():
+            if isinstance(pos_list, list):
+                for pos in pos_list:
+                    if isinstance(pos, dict):
+                        enriched = dict(pos)
+                        enriched['cached'] = True
+                        enriched['accountKey'] = acct_key
+                        positions.append(enriched)
+        # If no positions found for this user_id, also check fallback cache keys
+        # (bots started without an explicit user_id are cached under "__bot__:{bot_id}")
+        if not positions:
+            for cache_key, acct_cache in _live_mt5_position_cache.items():
+                if cache_key.startswith("__bot__:"):
+                    for acct_key, pos_list in acct_cache.items():
+                        if isinstance(pos_list, list):
+                            for pos in pos_list:
+                                if isinstance(pos, dict):
+                                    enriched = dict(pos)
+                                    enriched['cached'] = True
+                                    enriched['accountKey'] = acct_key
+                                    positions.append(enriched)
+        return positions
+
+
+def start_mt5_position_sync_thread():
+    """Start the background MT5 position cache sync thread."""
+    t = threading.Thread(target=_sync_mt5_position_cache, name='mt5-pos-cache', daemon=True)
+    t.start()
+    logger.info("📊 MT5 position cache sync thread started (15s refresh)")
+
+
 if __name__ == '__main__':
     logger.info("Starting Zwesta Multi-Broker Backend")
     logger.info(f"Mode: {ENVIRONMENT.upper()}")
@@ -59555,6 +59736,9 @@ if __name__ == '__main__':
     market_updater_thread = threading.Thread(target=live_market_data_updater, daemon=True)
     market_updater_thread.start()
     logger.info("🔄 Live market data updater thread started")
+    
+    # Start MT5 position cache sync thread (for /api/trades/open and /api/bot/summary)
+    start_mt5_position_sync_thread()
     
     # Start WebSocket price broadcaster thread
     if WEBSOCKET_AVAILABLE:

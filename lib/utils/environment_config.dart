@@ -3,12 +3,12 @@ import 'package:flutter/foundation.dart';
 enum Environment { development, staging, production }
 
 class EnvironmentConfig {
-  // All environments point to the deployed VPS backend by default.
+  // All environments point to the backend by default.
   // Override via API_URL dart-define or setApiUrl() at runtime.
-  // VPS public IP (backend listens on 0.0.0.0:9000, firewall opens inbound 9000).
-  static const String _devApiUrl = 'http://148.113.5.21:9000';
-  static const String _stagingApiUrl = 'http://148.113.5.21:9000';
-  static const String _prodApiUrl = 'http://148.113.5.21:9000';
+  // Backend listens on 0.0.0.0:9000, reachable at 127.0.0.1:9000 locally.
+  static const String _devApiUrl = 'http://127.0.0.1:9000';
+  static const String _stagingApiUrl = 'http://127.0.0.1:9000';
+  static const String _prodApiUrl = 'http://127.0.0.1:9000';
   static const int _localApiPort = 9000;
   static const bool _defaultUseLocalWebApi = false;
 

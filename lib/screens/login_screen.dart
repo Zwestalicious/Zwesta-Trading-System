@@ -40,7 +40,9 @@ class _LoginScreenState extends State<LoginScreen> {
     _firstNameController = TextEditingController();
     _lastNameController = TextEditingController();
     _referralCodeController = TextEditingController();
-    _loadRememberedUsername();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadRememberedUsername();
+    });
   }
 
   @override
