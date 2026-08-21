@@ -31,4 +31,6 @@ android/*.keystore
 backups/
 
 .credentials_key
+trading.db
+*.db
 

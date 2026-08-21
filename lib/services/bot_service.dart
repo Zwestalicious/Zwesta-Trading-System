@@ -320,8 +320,8 @@ class BotService extends ChangeNotifier {
           final fetchedBots = List<Map<String, dynamic>>.from(data['bots'] ?? []);
           if (fetchedBots.isEmpty) {
             _consecutiveEmptyPayloads += 1;
-            if (_consecutiveEmptyPayloads < 2 && previousBots.isNotEmpty) {
-              debugPrint('Ignoring transient empty bot payload during refresh');
+            if (previousBots.isNotEmpty) {
+              debugPrint('Ignoring empty bot payload during refresh, keeping previous bots');
               _isLoading = false;
               return;
             }

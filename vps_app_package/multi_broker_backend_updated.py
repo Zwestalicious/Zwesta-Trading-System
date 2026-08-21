@@ -24925,7 +24925,7 @@ def _rebuild_bot_profit_tracking(bot_state: Dict[str, Any]) -> None:
 
     today_key = datetime.now().strftime('%Y-%m-%d')
     bot_state['tradeHistory'] = trade_history[-500:]
-    bot_state['totalTrades'] = len(performance_closed_trades)
+    bot_state['totalTrades'] = len(closed_trades)
     bot_state['winningTrades'] = winning_trades
     bot_state['totalProfit'] = round(total_profit, 2)
     bot_state['totalLosses'] = round(total_losses, 2)

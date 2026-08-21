@@ -16506,65 +16506,8 @@ def get_trades_alias():
                             logger.warning(f"Skipping malformed DB trade row for user {user_id}: {row_error}")
 
                 if not trades_list:
-                    cursor.execute(
-                        '''
-                        SELECT credential_id
-                        FROM broker_credentials
-                        WHERE user_id = ? AND is_active = 1
-                        ORDER BY broker_name, credential_id DESC
-                        ''',
-                        (user_id,)
-                    )
-                    for cred_row in cursor.fetchall():
-                        credential_id = str(cred_row[0] if not isinstance(cred_row, sqlite3.Row) else cred_row['credential_id'])
-                        broker_conn = None
-                        try:
-                            conn_label, broker_conn = get_broker_connection(
-                                credential_id,
-                                user_id,
-                                bot_id=f'trades-history:{credential_id}',
-                            )
-                            if not _is_live_broker_connection(broker_conn):
-                                if broker_conn:
-                                    logger.warning(
-                                        f"Skipping invalid trade history connection for user {user_id}, credential {credential_id}: {broker_conn}"
-                                    )
-                                continue
-
-                            broker_trades = broker_conn.get_trades() or []
-                            for broker_trade in broker_trades:
-                                if not isinstance(broker_trade, dict) or not _is_meaningful_broker_trade(broker_trade):
-                                    continue
-
-                                normalized_trade = _normalize_broker_trade_preview(broker_trade)
-                                trade_key = str(
-                                    normalized_trade.get('ticket')
-                                    or normalized_trade.get('trade_id')
-                                    or normalized_trade.get('tradeId')
-                                    or ''
-                                ).strip()
-                                if trade_key and trade_key in seen_trade_keys:
-                                    continue
-
-                                normalized_trade['userId'] = user_id
-                                normalized_trade['source'] = 'live-broker'
-                                trades_list.append(normalized_trade)
-                                if trade_key:
-                                    seen_trade_keys.add(trade_key)
-                        except Exception as broker_error:
-                            logger.warning(
-                                f"Trade history fallback failed for user {user_id}, credential {credential_id}: {broker_error}"
-                            )
-                        finally:
-                            if hasattr(broker_conn, 'disconnect'):
-                                try:
-                                    broker_conn.disconnect()
-                                except Exception:
-                                    pass
-
-                    trades_list.sort(key=_trade_history_timestamp_key, reverse=True)
-
-                return trades_list
+                    logger.info(f"No database trades found for user {user_id}, skipping broker fallback for fast response")
+                    return trades_list
             finally:
                 conn.close()
 
@@ -25298,7 +25241,7 @@ def _rebuild_bot_profit_tracking(bot_state: Dict[str, Any]) -> None:
 
     today_key = datetime.now().strftime('%Y-%m-%d')
     bot_state['tradeHistory'] = trade_history[-500:]
-    bot_state['totalTrades'] = len(performance_closed_trades)
+    bot_state['totalTrades'] = len(closed_trades)
     bot_state['winningTrades'] = winning_trades
     bot_state['totalProfit'] = round(total_profit, 2)
     bot_state['totalLosses'] = round(total_losses, 2)
@@ -50382,6 +50325,10 @@ def bot_summary():
             if not _is_runtime_bot_backed_by_persistence(bot):
                 continue
 
+            bot_status = str(bot.get('status') or '').strip().upper()
+            if bot_status and bot_status not in ('ACTIVE', 'STARTING', 'RUNNING'):
+                continue
+
             if mode_filter in ('LIVE', 'DEMO'):
                 bot_mode = (bot.get('mode') or 'demo').upper()
                 if bot_mode != mode_filter:
@@ -50731,7 +50678,7 @@ def bot_summary():
                 FROM user_bots ub
                 LEFT JOIN bot_credentials bc ON bc.bot_id = ub.bot_id AND bc.user_id = ub.user_id
                 LEFT JOIN broker_credentials bcr ON bcr.credential_id = bc.credential_id
-                WHERE ub.user_id = ?
+                WHERE ub.user_id = ? AND LOWER(COALESCE(ub.status, '')) = 'active'
             '''
             params = [user_id]
             query += " ORDER BY COALESCE(ub.updated_at, ub.created_at, '') DESC, ub.bot_id DESC"
