@@ -1031,7 +1031,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       final prefs = await SharedPreferences.getInstance();
       final sessionToken = prefs.getString('auth_token');
       final userId = prefs.getString('user_id');
-      print('🔍 _fetchRealBots: sessionToken present=${sessionToken != null && sessionToken.isNotEmpty}, userId=$userId');
+      print('[DEBUG] _fetchRealBots: sessionToken present=${sessionToken != null && sessionToken.isNotEmpty}, userId=$userId');
       final previousBots = List<Map<String, dynamic>>.from(
         _realBotsList.whereType<Map<String, dynamic>>(),
       );
@@ -1044,7 +1044,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       if (userId != null && userId.isNotEmpty) {
         url += '&user_id=$userId';
       }
-      print('🔍 _fetchRealBots: fetching from $url');
+      print('[DEBUG] _fetchRealBots: fetching from $url');
 
       final response = await http.get(
         Uri.parse(url),
@@ -1054,9 +1054,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         },
       ).timeout(const Duration(seconds: 15));
 
-      print('🔍 _fetchRealBots: response status=${response.statusCode}, bodyLen=${response.body.length}');
+      print('[DEBUG] _fetchRealBots: response status=${response.statusCode}, bodyLen=${response.body.length}');
       if (response.statusCode != 200) {
-        print('🔍 _fetchRealBots: non-200 body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
+        print('[DEBUG] _fetchRealBots: non-200 body: ${response.body.substring(0, response.body.length > 200 ? 200 : response.body.length)}');
         throw Exception('API returned ${response.statusCode}');
       }
 
@@ -1079,14 +1079,14 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       if (mounted) {
         setState(() {
           _realBotsList = fetchedBots;
-          print('✅ Loaded ${_realBotsList.length} bots from backend');
+           print('[DEBUG] Loaded ${_realBotsList.length} bots from backend');
         });
       }
-      await _persistCachedBots(fetchedBots);
-     } catch (e, st) {
+       await _persistCachedBots(fetchedBots);
+    } catch (e, st) {
       // Don't wipe existing bot data on refresh errors - preserve previous data
-      print('⚠️ Bot refresh error (keeping previous data): $e');
-      print('⚠️ Bot refresh stack trace: $st');
+      print('[DEBUG] Bot refresh error (keeping previous data): $e');
+      print('[DEBUG] Bot refresh stack trace: $st');
       // Surface the error so the user can see what went wrong
       if (mounted) {
         setState(() {
