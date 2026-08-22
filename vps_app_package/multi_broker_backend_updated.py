@@ -2096,25 +2096,20 @@ def set_global_mt5(connection):
 def ensure_mt5_ready():
     """Check if MT5 IPC is alive WITHOUT reinitializing or disrupting the existing session.
     
-    SAFE: Uses account_info() to probe IPC, falls back to bare initialize() (no login params).
-    NEVER calls mt5.shutdown() or mt5.initialize(login=...).
+    SAFE: Uses terminal_info() as a lightweight probe. Does NOT call mt5.initialize()
+    or mt5.shutdown() — those can block indefinitely when the terminal is not running.
     
     Returns True if MT5 is ready for use, False otherwise.
     """
     try:
         import MetaTrader5 as mt5
-        # First try a lightweight probe - if account_info works, IPC is alive
-        info = mt5.account_info()
-        if info:
-            return True
-        # IPC might be stale - try bare initialize() which just reconnects IPC
-        # This does NOT change the logged-in account or restart the terminal
-        if mt5.initialize():
-            return True
-        logger.warning("⚠️ ensure_mt5_ready: MT5 IPC not responding")
-        return False
+        # Use terminal_info() as a lightweight non-blocking probe
+        # Returns None immediately if the terminal/IPC is not connected
+        if mt5.terminal_info() is None:
+            return False
+        return True
     except Exception as e:
-        logger.warning(f"⚠️ ensure_mt5_ready: {e}")
+        logger.debug(f"ensure_mt5_ready check failed: {e}")
         return False
 
 logger.info("✅ Global MT5 singleton initialized - will reuse single terminal across all bots")
@@ -17562,8 +17557,8 @@ def get_unified_portfolio():
                     if hasattr(broker_conn, 'disconnect'):
                         try:
                             broker_conn.disconnect()
-            except Exception as db_exc:
-                logger.warning(f"MT5 cache sync: credential lookup failed for bot {bot_id}: {db_exc}")
+                        except Exception:
+                            pass
             else:
                 broker_card['error'] = conn_label or 'Connection unavailable'
 
@@ -31206,22 +31201,25 @@ def live_market_data_updater():
     # Seed price_history from MT5 historical candles for better initial signals
     try:
         import MetaTrader5 as _mt5_hist
-        for symbol in list(commodity_market_data.keys()):
-            try:
-                # Try standard symbol, fallback to 'm' suffix for demo accounts
-                mt5_sym = symbol
-                rates = _mt5_hist.copy_rates_from_pos(symbol, _mt5_hist.TIMEFRAME_M5, 0, 50)
-                if rates is None or len(rates) <= 5:
-                    mt5_sym = symbol + 'm'
-                    rates = _mt5_hist.copy_rates_from_pos(mt5_sym, _mt5_hist.TIMEFRAME_M5, 0, 50)
-                if rates is not None and len(rates) > 5:
-                    price_history = [float(r[4]) for r in rates]  # close prices
-                    commodity_market_data[symbol]['price_history'] = price_history
-                    commodity_market_data[symbol]['current_price'] = price_history[-1]
-                    logger.info(f"📈 Seeded {symbol} price history: {len(price_history)} M5 candles, latest={price_history[-1]:.2f}")
-            except Exception as e:
-                logger.debug(f"Could not seed price history for {symbol}: {e}")
-        logger.info("✅ Price history seeding complete")
+        if ensure_mt5_ready():
+            for symbol in list(commodity_market_data.keys()):
+                try:
+                    # Try standard symbol, fallback to 'm' suffix for demo accounts
+                    mt5_sym = symbol
+                    rates = _mt5_hist.copy_rates_from_pos(symbol, _mt5_hist.TIMEFRAME_M5, 0, 50)
+                    if rates is None or len(rates) <= 5:
+                        mt5_sym = symbol + 'm'
+                        rates = _mt5_hist.copy_rates_from_pos(mt5_sym, _mt5_hist.TIMEFRAME_M5, 0, 50)
+                    if rates is not None and len(rates) > 5:
+                        price_history = [float(r[4]) for r in rates]  # close prices
+                        commodity_market_data[symbol]['price_history'] = price_history
+                        commodity_market_data[symbol]['current_price'] = price_history[-1]
+                        logger.info(f"📈 Seeded {symbol} price history: {len(price_history)} M5 candles, latest={price_history[-1]:.2f}")
+                except Exception as e:
+                    logger.debug(f"Could not seed price history for {symbol}: {e}")
+            logger.info("✅ Price history seeding complete")
+        else:
+            logger.warning("⚠️ MT5 not ready, skipping price history seeding")
     except Exception as e:
         logger.warning(f"Could not seed price history from MT5: {e}")
     
