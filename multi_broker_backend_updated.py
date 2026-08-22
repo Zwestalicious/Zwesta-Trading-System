@@ -2101,16 +2101,45 @@ def ensure_mt5_ready():
     
     Returns True if MT5 is ready for use, False otherwise.
     """
-    try:
-        import MetaTrader5 as mt5
-        # Use terminal_info() as a lightweight non-blocking probe
-        # Returns None immediately if the terminal/IPC is not connected
-        if mt5.terminal_info() is None:
-            return False
-        return True
-    except Exception as e:
-        logger.debug(f"ensure_mt5_ready check failed: {e}")
-        return False
+    return _mt5_call_threadsafe('terminal_info', timeout=5) is not None
+
+def _mt5_call_threadsafe(func_name: str, timeout: float = 5.0, *args, **kwargs):
+    """Run an MT5 SDK call in a daemon thread with a hard timeout.
+
+    When the MT5 IPC channel is not ready (terminal not running, IPC stalled),
+    calls like mt5.account_info() and mt5.initialize() can block for 30-60+
+    seconds. This wrapper enforces a hard timeout so that API endpoints
+    (e.g. /api/broker/test-connection) never hang indefinitely.
+
+    Returns the call result, or None if it timed out or raised.
+    """
+    import threading
+    import MetaTrader5 as mt5_mod
+
+    result = [None]
+    error = [None]
+
+    def _runner():
+        try:
+            fn = getattr(mt5_mod, func_name)
+            result[0] = fn(*args, **kwargs)
+        except Exception as e:
+            error[0] = e
+
+    t = threading.Thread(target=_runner, daemon=True)
+    t.start()
+    t.join(timeout=timeout)
+    if t.is_alive():
+        logger.warning(
+            f"  ⏰ mt5.{func_name}() timed out after {timeout}s — IPC channel not ready "
+            "or terminal is busy. Returning None (caller should defer verification)."
+        )
+        return None
+    if error[0] is not None:
+        logger.debug(f"  mt5.{func_name}() raised: {error[0]}")
+        return error[0]
+    return result[0]
+
 
 logger.info("✅ Global MT5 singleton initialized - will reuse single terminal across all bots")
 
@@ -7454,9 +7483,11 @@ class MT5Connection(BrokerConnection):
                             # Transient IPC errors (-10014 = future not completed, -10005/-10004 = IPC busy):
                             # wait longer and retry a couple of times before falling back to initialize().
                             if err_code in (-10014, -10005, -10004) or 'future not completed' in err_msg or 'ipc' in err_msg:
-                                logger.warning(f"  ⚠️ Transient IPC error during fast login ({err}) — waiting 8s and retrying")
+                                logger.warning(f"  ⚠️ Transient IPC error during fast login ({err}) — retrying")
                                 for ipc_retry in range(2):
-                                    time.sleep(8 if ipc_retry == 0 else 4)
+                                    # Shorter sleeps for manual test (test-connection) to stay within client timeout
+                                    _ipc_sleep = (3 if is_manual_test else 8) if ipc_retry == 0 else (2 if is_manual_test else 4)
+                                    time.sleep(_ipc_sleep)
                                     login_ok = self.mt5.login(int(account), password=str(password), server=str(server))
                                     if login_ok:
                                         time.sleep(1)
@@ -7693,8 +7724,10 @@ class MT5Connection(BrokerConnection):
                         # For "future not completed" errors on first attempts, increase wait time significantly
                         if error_code == -10014 or 'future not completed' in err_desc:
                             if attempt <= 2:
-                                logger.info(f"  💤 MT5 IPC 'future not completed' - sleeping extra 5s for terminal stabilization")
-                                time.sleep(5)
+                                # Shorter stabilization sleep for manual test (test-connection) mode
+                                _stabilise_sleep = 2 if is_manual_test else 5
+                                logger.info(f"  💤 MT5 IPC 'future not completed' - sleeping {_stabilise_sleep}s for terminal stabilization")
+                                time.sleep(_stabilise_sleep)
                         logger.debug(f"    (Terminal process may still be starting...)")
                 
                 except Exception as e:
@@ -7703,7 +7736,8 @@ class MT5Connection(BrokerConnection):
                 # Wait before retry with exponential backoff
                 if attempt < max_retries:
                     # For IPC errors, use longer backoff: 8s, 10s, (no 3rd wait as this completes loop)
-                    wait_time = (5 if error_code == -10014 else 5) + (2 * attempt)
+                    _retry_base = 2 if is_manual_test else 5
+                    wait_time = (_retry_base if error_code == -10014 else _retry_base) + (2 * attempt)
                     logger.info(f"  ⏳ Retry in {wait_time}s (exponential backoff)...")
                     time.sleep(wait_time)
             
@@ -32393,13 +32427,15 @@ def save_broker_credentials():
         try:
             # For Exness/MT5 brokers, get actual account currency
             if broker_name in ['Exness', 'MetaQuotes', 'XM', 'XM Global', 'PXBT', 'MetaTrader 5']:
-                test_creds = {
+                mt5_conn = MT5Connection({
                     'account_number': account_number,
                     'password': password,
                     'server': server,
                     'broker_name': broker_name,
-                }
-                mt5_conn = MT5Connection(test_creds)
+                    'is_manual_test': True,
+                    'lock_timeout': 3,
+                    'init_timeout': 10,
+                })
                 if mt5_conn.connect():
                     acct_info = mt5_conn.get_account_info()
                     if acct_info and acct_info.get('currency'):
@@ -33062,8 +33098,12 @@ def test_broker_connection():
             if defer_exness_verification:
                 try:
                     import MetaTrader5 as mt5_mod
-                    active_info = mt5_mod.account_info()
-                    if active_info is not None and str(active_info.login) == str(account):
+                    if not ensure_mt5_ready():
+                        logger.info("  ℹ️ MT5 IPC not ready — skipping active-session reuse check for Exness")
+                        active_info = None
+                    else:
+                        active_info = mt5_mod.account_info()
+                    if active_info is not None and str(getattr(active_info, 'login', None)) == str(account):
                         actual_balance = float(getattr(active_info, 'balance', actual_balance) or actual_balance)
                         actual_equity = float(getattr(active_info, 'equity', actual_balance) or actual_balance)
                         actual_margin_free = float(getattr(active_info, 'margin_free', 0) or 0)
@@ -33111,8 +33151,8 @@ def test_broker_connection():
                     # terminals need a longer single IPC window before mt5.initialize()
                     # returns -10014 "future not completed". Tunable via env so it can be
                     # raised further on very slow hosts without code changes.
-                    'lock_timeout': int(os.getenv('ZWESTA_MT5_LOCK_TIMEOUT', '8')),
-                    'init_timeout': int(os.getenv('ZWESTA_MT5_INIT_TIMEOUT', '30')),
+                    'lock_timeout': int(os.getenv('ZWESTA_MT5_LOCK_TIMEOUT', '3')),
+                    'init_timeout': int(os.getenv('ZWESTA_MT5_INIT_TIMEOUT', '10')),
                 })
 
                 if quick_test_conn.connect():
@@ -33176,8 +33216,12 @@ def test_broker_connection():
             if not got_real_balance and defer_exness_verification:
                 try:
                     import MetaTrader5 as mt5_mod
-                    active_info = mt5_mod.account_info()
-                    if active_info is not None and str(active_info.login) == str(account):
+                    if not ensure_mt5_ready():
+                        logger.info("  ℹ️ MT5 IPC not ready — skipping active-session balance check for Exness")
+                        active_info = None
+                    else:
+                        active_info = mt5_mod.account_info()
+                    if active_info is not None and str(getattr(active_info, 'login', None)) == str(account):
                         actual_balance = active_info.balance
                         actual_equity = getattr(active_info, 'equity', actual_balance)
                         actual_margin_free = getattr(active_info, 'margin_free', 0)
@@ -33231,11 +33275,14 @@ def test_broker_connection():
                     #                                   will be refreshed by the bot trading loop
                     #   3) MT5 not connected         → proceed with guarded quick-login as before
                     try:
-                        _current_info = mt5_mod.account_info()
+                        if not ensure_mt5_ready():
+                            _current_info = None
+                        else:
+                            _current_info = mt5_mod.account_info()
                     except Exception:
                         _current_info = None
 
-                    if _current_info is not None and str(_current_info.login) == str(account):
+                    if _current_info is not None and str(getattr(_current_info, 'login', None)) == str(account):
                         # MT5 is already on this exact account – read balance without re-init
                         actual_balance = _current_info.balance
                         actual_equity = getattr(_current_info, 'equity', actual_balance)
@@ -33271,18 +33318,24 @@ def test_broker_connection():
                                 )
                                 init_ok = False
                                 if terminal_path:
-                                    init_ok = mt5_mod.initialize(
+                                    init_ok = _mt5_call_threadsafe(
+                                        'initialize', timeout=10,
                                         path=terminal_path,
                                         login=int(account),
                                         password=str(password),
                                         server=str(server),
                                     )
                                 else:
-                                    init_ok = mt5_mod.initialize(login=int(account), password=str(password), server=str(server))
+                                    init_ok = _mt5_call_threadsafe(
+                                        'initialize', timeout=10,
+                                        login=int(account),
+                                        password=str(password),
+                                        server=str(server),
+                                    )
 
-                                login_ok = init_ok
+                                login_ok = bool(init_ok)
                                 if login_ok:
-                                    info = mt5_mod.account_info()
+                                    info = _mt5_call_threadsafe('account_info', timeout=5)
                                     if info:
                                         actual_balance = info.balance
                                         actual_equity = getattr(info, 'equity', actual_balance)
@@ -33294,10 +33347,10 @@ def test_broker_connection():
                                         got_real_balance = True
                                         verified_connection = True
                                         logger.info(f"💰 Got real balance via quick MT5 login: {actual_balance:.2f} {actual_currency} | Equity: {actual_equity:.2f} | Free Margin: {actual_margin_free:.2f} | P/L: {actual_profit:.2f}")
-                                else:
-                                    err = mt5_mod.last_error()
-                                    logger.warning(f"⚠️ Quick MT5 login failed: {err} - using default balance")
-                                mt5_mod.shutdown()
+                                    else:
+                                        err = _mt5_call_threadsafe('last_error', timeout=3)
+                                        logger.warning(f"⚠️ Quick MT5 login failed: {err} - using default balance")
+                                _mt5_call_threadsafe('shutdown', timeout=5)
                             finally:
                                 mt5_connection_lock.release()
                         else:
