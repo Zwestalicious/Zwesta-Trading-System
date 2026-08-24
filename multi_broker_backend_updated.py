@@ -38272,6 +38272,34 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
                 f"peak {peak_profit:.2f} (now {current_profit:.2f} {_currency_label}) — banking remaining profit"
             )
 
+        # ── PROFIT RETRACE GUARD: aggressive TP near peak ──────────────────────
+        # When a position reaches a meaningful fraction of the take-profit target
+        # (e.g., $1.80 of a $3.00 TP = 60%), arm a tight retrace guard.
+        # If profit then drops by 10% from the peak, close immediately to bank profit.
+        # This prevents the common pattern where a trade hits $1.80, then slowly
+        # round-trips back to $0.50 before the wider PEAK_PROFIT_RETRACE_BANK fires.
+        _profit_target = _safe_float(bot_config.get('flatTakeProfitUsd'), 0.0)
+        _profit_retrace_guard_armed = False
+        if _profit_target > 0:
+            # Arm when peak reaches 50%+ of the TP target
+            _guard_arm_threshold = _profit_target * 0.50
+            _guard_retrace_pct = max(0.05, min(0.20, _safe_float(bot_config.get('profitRetraceGuardPct', 0.10), 0.10)))
+            if peak_profit >= _guard_arm_threshold:
+                _profit_retrace_guard_armed = True
+            if (
+                not close_reason
+                and _profit_retrace_guard_armed
+                and current_profit > 0
+                and current_profit <= peak_profit * (1.0 - _guard_retrace_pct)
+                and not _recent_close_request(tracked)
+            ):
+                close_reason = 'PROFIT_RETRACE_GUARD'
+                logger.info(
+                    f"[TP] Bot {bot_id}: position {ticket} hit profit retrace guard "
+                    f"(peak {peak_profit:.2f} {_currency_label} of {_profit_target:.2f} TP target, "
+                    f"retraced {_guard_retrace_pct*100:.0f}% to {current_profit:.2f}) — banking profit at peak"
+                )
+
         _locked_profit_floor = _safe_float(tracked.get('lockedProfitFloor'), 0.0)
         _hard_loss_min_age = 3.0 if is_binance_position else (7.0 if is_exness_forex_position else 15.0)
         if base_symbol == 'GBPUSD':
