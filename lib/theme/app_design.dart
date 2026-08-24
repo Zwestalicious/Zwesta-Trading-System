@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'app_theme.dart';
+
 /// Design system tokens for the Zwesta trading app.
 /// Use these consistently across all screens for a professional look.
 class AppDesign {
@@ -61,8 +63,8 @@ class AppDesign {
   static const double icon3Xl = 64;
 }
 
-/// Semantic color accessor — use context.colors.profit, context.colors.loss, etc.
-extension AppColors on BuildContext {
+/// Semantic color accessor — use context.appColors.profit, context.appColors.loss, etc.
+extension AppSemanticColorsExt on BuildContext {
   Color get profit => Theme.of(this).extension<AppSemanticColors>()?.profit ?? const Color(0xFF4CAF50);
   Color get loss => Theme.of(this).extension<AppSemanticColors>()?.loss ?? const Color(0xFFFF5252);
   Color get success => Theme.of(this).extension<AppSemanticColors>()?.success ?? const Color(0xFF4CAF50);
@@ -160,7 +162,7 @@ class AppCard extends StatelessWidget {
   final VoidCallback? onTap;
   final List<BoxShadow>? shadows;
 
-  const AppAppCard({
+  AppCard({
     super.key,
     required this.child,
     this.padding,
@@ -221,7 +223,7 @@ class AppGlassCard extends StatelessWidget {
   final EdgeInsetsGeometry? margin;
   final VoidCallback? onTap;
 
-  const AppGlassCard({
+  AppGlassCard({
     super.key,
     required this.child,
     this.padding,
