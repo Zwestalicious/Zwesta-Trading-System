@@ -120,7 +120,7 @@ class BotService extends ChangeNotifier {
     }
   }
 
-  void startPolling({String? tradingMode, Duration interval = const Duration(seconds: 2)}) {
+  void startPolling({String? tradingMode, Duration interval = const Duration(seconds: 10)}) {
     final mode = tradingMode ?? _lastTradingMode;
     _pollTimer?.cancel();
     // Don't skip polling due to auth state - let _fetchActiveBotsInternal handle auth errors
@@ -247,7 +247,7 @@ class BotService extends ChangeNotifier {
     final mode = tradingMode ?? (storedMode == 'LIVE' || storedMode == 'DEMO' ? storedMode : fallbackMode);
     await _hydrateCachedActiveBotsIfNeeded(prefs);
     final now = DateTime.now();
-    if (!force && _lastFetchAt != null && _lastTradingMode == mode && now.difference(_lastFetchAt!) < const Duration(seconds: 1)) {
+    if (!force && _lastFetchAt != null && _lastTradingMode == mode && now.difference(_lastFetchAt!) < const Duration(seconds: 5)) {
       return;
     }
 

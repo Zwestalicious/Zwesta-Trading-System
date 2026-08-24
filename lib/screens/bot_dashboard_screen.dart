@@ -563,6 +563,8 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
           ),
           child: allBots.isEmpty && botService.isLoading
               ? Center(child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
+              : allBots.isEmpty && !botService.isLoading
+                  ? _buildNoBotsState()
               : RefreshIndicator(
                   onRefresh: () => botService.fetchActiveBots(tradingMode: _tradingMode, force: true),
                   color: Theme.of(context).colorScheme.primary,
@@ -966,6 +968,36 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
     );
 
   Widget _buildBotCard(Map<String, dynamic> bot, CurrencyProvider currencyProvider) => _buildUnifiedBotCard(bot, currencyProvider);
+
+  Widget _buildNoBotsState() => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(48),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.smart_toy_outlined, size: 64, color: Colors.white.withOpacity(0.2)),
+              const SizedBox(height: 16),
+              Text(
+                'No Active Bots',
+                style: GoogleFonts.poppins(
+                  color: Colors.white70,
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Create a bot to start trading automatically',
+                style: GoogleFonts.poppins(
+                  color: Colors.white54,
+                  fontSize: 14,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+      );
 
   /// Groups bots by broker (Binance / Exness / FXCM / Other) and renders
   /// each non-empty group with a header showing count + native-currency P&L.
