@@ -5,10 +5,13 @@
 build
 .vercel
 .env*.local
-".env.local" 
+".env.local"
 .cache/
 node_modules/
 .env
+.env.vps-*
+.env.production
+.env.staging
 .cache/
 node_modules/
 .env
@@ -22,7 +25,7 @@ hs_err_pid*.log
 *.log
 .dart_tool/
 .dart_tool/package_config.json
-.flutter-plugins-dependencies
+.dart-plugins-dependencies
 # Track pubspec.lock for reproducible CI builds
 # pubspec.lock
 android/key.properties
@@ -34,3 +37,29 @@ backups/
 trading.db
 *.db
 
+# VPS deployment bundles (contain production credentials)
+vps_rdp_bundle/.env
+vps_app_package/.env
+vps_app_package/vps_rdp_bundle/.env
+
+# Secrets and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary test files
+test_final.py
+check_*.py
+inspect_*.py

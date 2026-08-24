@@ -16,6 +16,7 @@ import copy
 import sqlite3
 import uuid
 import hashlib
+import secrets
 import math
 import threading
 import random
@@ -4787,10 +4788,9 @@ def require_session(f):
             event_key = f"missing_token:{request.method}:{request.path}:{request.remote_addr}"
             if should_log_session_event(event_key, 30):
                 logger.warning(f"🚨 [CRITICAL] MISSING X-Session-Token for {request.method} {request.path}")
-                logger.warning(f"📋 Headers received: {dict(request.headers)}")
                 logger.warning(f"🌐 Client IP: {request.remote_addr}")
         else:
-            logger.debug(f"[SESSION CHECK] Endpoint: {request.endpoint}, Token received: {session_token[:20]}...")
+            logger.debug(f"[SESSION CHECK] Endpoint: {request.endpoint}, Token present")
         
         if not session_token:
             if should_log_session_event(f"missing_token_fail:{request.endpoint}:{request.remote_addr}", 30):
@@ -4846,6 +4846,7 @@ def require_session(f):
                 'expires_at': session['expires_at'],
                 'validated_at': time.time(),
             }
+            _enforce_cache_bound(SESSION_VALIDATION_CACHE)
             logger.debug(f"[SESSION OK] User {session['user_id']} authenticated for {request.endpoint}")
             return f(*args, **kwargs)
         except sqlite3.OperationalError as e:
@@ -6576,6 +6577,40 @@ def init_database():
 
     conn.commit()
     conn.close()
+
+    # ==================== DATABASE INDEXES ====================
+    # Create indexes for production performance on frequently queried columns
+    _index_conn = build_sqlite_connection(timeout=30.0)
+    _index_cur = _index_conn.cursor()
+    _indexes = [
+        "CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON user_sessions(token)",
+        "CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON user_sessions(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON user_sessions(expires_at)",
+        "CREATE INDEX IF NOT EXISTS idx_broker_credentials_user_id ON broker_credentials(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_broker_credentials_user_broker ON broker_credentials(user_id, broker_name)",
+        "CREATE INDEX IF NOT EXISTS idx_user_bots_user_id ON user_bots(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_user_bots_status ON user_bots(status)",
+        "CREATE INDEX IF NOT EXISTS idx_user_bots_user_status ON user_bots(user_id, status)",
+        "CREATE INDEX IF NOT EXISTS idx_transactions_user_id ON transactions(user_id)",
+        "CREATE INDEX IF NOT EXISTS idx_transactions_user_created ON transactions(user_id, created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_trades_bot_id ON trades(bot_id)",
+        "CREATE INDEX IF NOT EXISTS idx_trades_ticket ON trades(ticket)",
+        "CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status)",
+        "CREATE INDEX IF NOT EXISTS idx_trades_bot_status ON trades(bot_id, status)",
+        "CREATE INDEX IF NOT EXISTS idx_bot_credentials_bot_id ON bot_credentials(bot_id)",
+        "CREATE INDEX IF NOT EXISTS idx_worker_pool_status ON worker_pool(status)",
+        "CREATE INDEX IF NOT EXISTS idx_worker_bot_assignments_worker ON worker_bot_assignments(worker_id)",
+        "CREATE INDEX IF NOT EXISTS idx_worker_bot_assignments_account ON worker_bot_assignments(account_number)",
+    ]
+    for _idx_sql in _indexes:
+        try:
+            _index_cur.execute(_idx_sql)
+        except Exception:
+            pass  # Index may already exist or table not yet created
+    _index_conn.commit()
+    _index_conn.close()
+    # ==================== END INDEXES ====================
+
     logger.info("Database initialized")
 
 def get_db_connection():
@@ -6708,6 +6743,16 @@ SESSION_VALIDATION_CACHE = {}
 SESSION_VALIDATION_CACHE_TTL_SECONDS = int(
     os.getenv('SESSION_VALIDATION_CACHE_TTL_SECONDS', '120' if using_postgres() else '30')
 )
+# Bound caches to prevent memory leaks in long-running production processes
+MAX_CACHE_SIZE = int(os.getenv('MAX_CACHE_SIZE', '5000'))
+
+def _enforce_cache_bound(cache_dict: dict, max_size: int = MAX_CACHE_SIZE):
+    """Evict oldest entries if cache exceeds max size (simple FIFO eviction)."""
+    if len(cache_dict) > max_size:
+        # Remove oldest 25% of entries
+        excess = len(cache_dict) - max_size
+        for key in list(cache_dict.keys())[:excess]:
+            cache_dict.pop(key, None)
 SQLITE_CONNECTION_TIMEOUT_SECONDS = float(os.getenv('SQLITE_CONNECTION_TIMEOUT_SECONDS', '60'))
 SQLITE_BUSY_TIMEOUT_MS = int(os.getenv('SQLITE_BUSY_TIMEOUT_MS', '60000'))
 LOGIN_SESSION_WRITE_TIMEOUT_MS = int(os.getenv('LOGIN_SESSION_WRITE_TIMEOUT_MS', '1500'))
@@ -53170,7 +53215,7 @@ def login_user():
             except Exception:
                 pass
             
-            temp_token = hashlib.sha256(f"{user_id}{datetime.now().isoformat()}2fa".encode()).hexdigest()
+            temp_token = secrets.token_urlsafe(32)
             
             cursor.execute('DELETE FROM pending_2fa WHERE user_id = ?', (user_id,))
             cursor.execute('''INSERT INTO pending_2fa (user_id, otp_code, temp_token, expires_at) 
@@ -53195,8 +53240,8 @@ def login_user():
         
         # No 2FA — create full session
         session_id = str(uuid.uuid4())
-        token = hashlib.sha256(f"{user_id}{datetime.now().isoformat()}".encode()).hexdigest()
-        expires_at = (datetime.now() + timedelta(days=30)).isoformat()
+        token = secrets.token_urlsafe(48)
+        expires_at = (datetime.now() + timedelta(days=1)).isoformat()
 
         # Login should not stall behind long-running bot/cache writes. If SQLite is busy,
         # fall back quickly to the in-memory session cache and let validation accept it.
@@ -53370,8 +53415,8 @@ def verify_2fa():
         
         # Create full session
         session_id = str(uuid.uuid4())
-        token = hashlib.sha256(f"{user_id}{datetime.now().isoformat()}".encode()).hexdigest()
-        expires_at = (datetime.now() + timedelta(days=30)).isoformat()
+        token = secrets.token_urlsafe(48)
+        expires_at = (datetime.now() + timedelta(days=1)).isoformat()
         
         _insert_user_session(
             conn,
@@ -59821,9 +59866,39 @@ if __name__ == '__main__':
     # earlier in startup, so port 9000 opens within seconds. Here we just keep the
     # main thread alive so daemon threads (bots, price feeds, server) keep running.
     logger.info("✅ Startup complete - HTTP server is running in background; main thread holding process alive")
+
+    # ==================== GRACEFUL SHUTDOWN ====================
+    import signal
+    _shutdown_event = threading.Event()
+
+    def _graceful_shutdown(signum, frame):
+        """Handle SIGTERM/SIGINT for graceful shutdown."""
+        logger.info(f"🛑 Received signal {signum} — initiating graceful shutdown...")
+        _shutdown_event.set()
+        try:
+            if worker_pool_manager and worker_pool_manager.enabled:
+                logger.info("Stopping worker pool...")
+                worker_pool_manager.shutdown()
+        except Exception:
+            pass
+        try:
+            if binance_worker_pool_manager and binance_worker_pool_manager.enabled:
+                logger.info("Stopping Binance worker pool...")
+                binance_worker_pool_manager.shutdown()
+        except Exception:
+            pass
+        logger.info("✅ Graceful shutdown complete")
+
+    signal.signal(signal.SIGTERM, _graceful_shutdown)
+    signal.signal(signal.SIGINT, _graceful_shutdown)
+    # ==================== END SHUTDOWN ====================
+
     try:
-        while True:
-            time.sleep(3600)
+        while not _shutdown_event.is_set():
+            _shutdown_event.wait(timeout=60)
+            # Periodic cache cleanup
+            _enforce_cache_bound(SESSION_VALIDATION_CACHE)
+            _enforce_cache_bound(TEMP_SESSION_CACHE)
     except (KeyboardInterrupt, SystemExit):
         logger.info("Shutdown signal received")
 
