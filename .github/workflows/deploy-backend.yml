@@ -20,8 +20,8 @@ on:
     branches: [ main ]
     paths:
       - 'multi_broker_backend_updated.py'
-       - 'postgres_schema.py'
-       - '.github/workflows/deploy-backend.yml'
+      - 'postgres_schema.py'
+      - '.github/workflows/deploy-backend.yml'
   workflow_dispatch:
     inputs:
       restart_only:
@@ -53,7 +53,7 @@ jobs:
             Write-Host "No python processes running"
           }
 
-       - name: Copy backend file
+      - name: Copy backend file
         if: ${{ github.event.inputs.restart_only != 'true' }}
         shell: pwsh
         run: |
