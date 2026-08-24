@@ -36354,7 +36354,9 @@ def _adaptive_signal_threshold_floor(bot_config: Dict[str, Any]) -> int:
             return 40
         if normalized_profile in {'advanced', 'fast_growth'}:
             return 35
-        return 40
+        # Balanced/beginner: raise floor from 35-40 to 45 to filter out
+        # low-quality signals that lose more than they win (per trade history analysis)
+        return 45
 
     strategy_name = str(bot_config.get('strategy') or '').strip().lower()
     configured_symbols = bot_config.get('symbols') or []
@@ -42022,6 +42024,24 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
                 logger.warning(f"Could not determine market hours: {e} - allowing trade")
                 return True, "Unknown market status"
         
+        def is_trade_session_quality():
+            """Check if current UTC hour is a quality trading session.
+            
+            Based on trading history analysis:
+            - 20:00-23:00 UTC: worst performance (-$1,005 combined, 19-36% win rate)
+            - 16:00-17:00 UTC: best performance (+$208 combined, 61% win rate)
+            
+            Returns False only for the worst session (20:00-23:00 UTC).
+            """
+            try:
+                now_utc = datetime.utcnow()
+                hour_utc = now_utc.hour
+                if 20 <= hour_utc <= 23:
+                    return False, f"Low-quality session ({hour_utc:02d}:00 UTC) — avoiding chop"
+                return True, "Quality trading session"
+            except Exception:
+                return True, "Session check error — allowing"
+        
         while not bot_stop_flags.get(bot_id, False):
             try:
                 if is_user_kill_switch_active(bot_config.get('user_id') or user_id):
@@ -42739,6 +42759,14 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
                             last_order_block_reason = f"{symbol} market closed: {symbol_market_status}"
                             logger.info(f"⏭️ Bot {bot_id}: Skipping {symbol} - {symbol_market_status}")
                             continue
+
+                        # ==================== SESSION QUALITY FILTER ====================
+                        session_quality_ok, session_reason = is_trade_session_quality()
+                        if not session_quality_ok:
+                            last_order_block_reason = session_reason
+                            logger.info(f"⏭️ Bot {bot_id}: Skipping {symbol} - {session_reason}")
+                            continue
+                        # ==================== END SESSION FILTER ====================
 
                         bot_config['_lastRiskBlockReason'] = None
                         if not should_trade_symbol_based_on_risk_management(bot_config, symbol):
