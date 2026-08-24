@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/trade.dart';
 import '../services/financial_export_service.dart';
+import '../theme/app_design.dart';
 import '../services/trading_service.dart';
 import '../utils/constants.dart';
 import '../utils/environment_config.dart';
@@ -50,11 +51,11 @@ class _TradesScreenState extends State<TradesScreen> {
                   child: Row(
                     children: [
                       const Icon(Icons.picture_as_pdf_outlined,
-                          color: Color(0xFF69F0AE), size: 18),
+                          color: Color(0xFF4CAF50), size: 18),
                       const SizedBox(width: 8),
                       Text('Export PDF',
                           style: GoogleFonts.poppins(
-                              color: const Color(0xFF69F0AE), fontSize: 13)),
+                              color: const Color(0xFF4CAF50), fontSize: 13)),
                     ],
                   ),
                 ),
@@ -217,7 +218,7 @@ class _TradesScreenState extends State<TradesScreen> {
                         height: 40,
                         color: Colors.white.withOpacity(0.1)),
                     _buildAccountMetric('Equity', tradingService.accountEquity,
-                        const Color(0xFF69F0AE), tradingService.accountCurrencySymbol),
+                        const Color(0xFF4CAF50), tradingService.accountCurrencySymbol),
                     Container(
                         width: 1,
                         height: 40,
@@ -328,8 +329,8 @@ class _TradesScreenState extends State<TradesScreen> {
           borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: isProfitable
-                ? const Color(0xFF69F0AE).withOpacity(0.3)
-                : const Color(0xFFFF8A80).withOpacity(0.3),
+                ? const Color(0xFF4CAF50).withOpacity(0.3)
+                : const Color(0xFFFF5252).withOpacity(0.3),
           ),
         ),
         padding: const EdgeInsets.all(12),
@@ -380,8 +381,8 @@ class _TradesScreenState extends State<TradesScreen> {
                     type,
                     style: GoogleFonts.poppins(
                       color: isBuy
-                          ? const Color(0xFF69F0AE)
-                          : const Color(0xFFFF8A80),
+                          ? const Color(0xFF4CAF50)
+                          : const Color(0xFFFF5252),
                       fontSize: 11,
                       fontWeight: FontWeight.w600,
                     ),
@@ -439,13 +440,13 @@ class _TradesScreenState extends State<TradesScreen> {
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
                 color: isProfitable
-                    ? const Color(0xFF69F0AE).withOpacity(0.1)
-                    : const Color(0xFFFF8A80).withOpacity(0.1),
+                    ? const Color(0xFF4CAF50).withOpacity(0.1)
+                    : const Color(0xFFFF5252).withOpacity(0.1),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
                   color: isProfitable
-                      ? const Color(0xFF69F0AE).withOpacity(0.3)
-                      : const Color(0xFFFF8A80).withOpacity(0.3),
+                      ? const Color(0xFF4CAF50).withOpacity(0.3)
+                      : const Color(0xFFFF5252).withOpacity(0.3),
                 ),
               ),
               child: Row(
@@ -456,8 +457,8 @@ class _TradesScreenState extends State<TradesScreen> {
                       Icon(
                         isProfitable ? Icons.trending_up : Icons.trending_down,
                         color: isProfitable
-                            ? const Color(0xFF69F0AE)
-                            : const Color(0xFFFF8A80),
+                            ? const Color(0xFF4CAF50)
+                            : const Color(0xFFFF5252),
                         size: 18,
                       ),
                       const SizedBox(width: 8),
@@ -471,8 +472,8 @@ class _TradesScreenState extends State<TradesScreen> {
                             '${isProfitable ? '+' : ''}$currencyPrefix${profit.toStringAsFixed(2)}',
                             style: GoogleFonts.poppins(
                               color: isProfitable
-                                  ? const Color(0xFF69F0AE)
-                                  : const Color(0xFFFF8A80),
+                                  ? const Color(0xFF4CAF50)
+                                  : const Color(0xFFFF5252),
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                             ),
@@ -485,8 +486,8 @@ class _TradesScreenState extends State<TradesScreen> {
                     '${isProfitable ? '+' : ''}${profitPct.toStringAsFixed(2)}%',
                     style: GoogleFonts.poppins(
                       color: isProfitable
-                          ? const Color(0xFF69F0AE)
-                          : const Color(0xFFFF8A80),
+                          ? const Color(0xFF4CAF50)
+                          : const Color(0xFFFF5252),
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),

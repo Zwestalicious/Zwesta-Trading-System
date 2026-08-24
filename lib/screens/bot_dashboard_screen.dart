@@ -1154,7 +1154,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
     final temporalGuardReason = (bot['temporalGuardReason'] ?? '').toString().trim();
     final showTemporalGuard = temporalGuardStatus == 'blocked' || temporalGuardStatus == 'demoted';
     final temporalGuardColor = temporalGuardStatus == 'blocked'
-      ? const Color(0xFFFF8A80)
+      ? const Color(0xFFFF5252)
       : const Color(0xFFFFB74D);
 
     return Container(
@@ -1166,7 +1166,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
         border: Border.all(color: Colors.white.withOpacity(0.1)),
         boxShadow: [
           BoxShadow(
-            color: isEnabled ? const Color(0xFF69F0AE).withOpacity(0.1) : Colors.black.withOpacity(0.2),
+            color: isEnabled ? const Color(0xFF4CAF50).withOpacity(0.1) : Colors.black.withOpacity(0.2),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),
@@ -1322,12 +1322,12 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
                 decoration: BoxDecoration(
                   color: isEnabled
-                    ? const Color(0xFF69F0AE).withOpacity(0.2)
+                    ? const Color(0xFF4CAF50).withOpacity(0.2)
                     : Colors.grey.withOpacity(0.2),
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(
                     color: isEnabled
-                      ? const Color(0xFF69F0AE)
+                      ? const Color(0xFF4CAF50)
                       : Colors.grey,
                   ),
                 ),
@@ -1335,7 +1335,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                   status,
                   style: GoogleFonts.poppins(
                     color: isEnabled
-                      ? const Color(0xFF69F0AE)
+                      ? const Color(0xFF4CAF50)
                       : Colors.grey,
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
@@ -1381,7 +1381,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
             spacing: 8,
             runSpacing: 8,
             children: [
-              _buildMetaChip(accountModeLabel, isDemoBot ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80)),
+              _buildMetaChip(accountModeLabel, isDemoBot ? const Color(0xFF4CAF50) : const Color(0xFFFF5252)),
               _buildMetaChip('Profile: $profileLabel', const Color(0xFF00E5FF)),
               if (presetName.isNotEmpty)
                 _buildMetaChip('Preset: $presetName', const Color(0xFFFFA726)),
@@ -1409,7 +1409,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
               Text(runtime, style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 13)),
               const Spacer(),
               Text('Open P/L ', style: GoogleFonts.poppins(color: Colors.white60, fontSize: 12)),
-              Text(_formatAmount(currencyProvider, floatingProfit, currencyCode: displayCurrency), style: GoogleFonts.poppins(color: floatingProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80), fontWeight: FontWeight.bold, fontSize: 13)),
+              Text(_formatAmount(currencyProvider, floatingProfit, currencyCode: displayCurrency), style: GoogleFonts.poppins(color: floatingProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252), fontWeight: FontWeight.bold, fontSize: 13)),
             ],
           ),
           const SizedBox(height: 6),
@@ -1427,7 +1427,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                 ],
               ),
               const SizedBox(width: 4),
-              Text(_formatAmount(currencyProvider, todayClosedProfit, currencyCode: displayCurrency), style: GoogleFonts.poppins(color: todayClosedProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80), fontWeight: FontWeight.w600, fontSize: 12)),
+              Text(_formatAmount(currencyProvider, todayClosedProfit, currencyCode: displayCurrency), style: GoogleFonts.poppins(color: todayClosedProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252), fontWeight: FontWeight.w600, fontSize: 12)),
               const Spacer(),
               Row(
                 mainAxisSize: MainAxisSize.min,
@@ -1446,10 +1446,10 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                 children: [
                   Icon(
                     currentProfit >= 0 ? Icons.arrow_upward : Icons.arrow_downward,
-                    color: currentProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                    color: currentProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                     size: 14,
                   ),
-                  Text(_formatAmount(currencyProvider, currentProfit, currencyCode: displayCurrency), style: GoogleFonts.poppins(color: currentProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80), fontWeight: FontWeight.w700, fontSize: 12)),
+                  Text(_formatAmount(currencyProvider, currentProfit, currencyCode: displayCurrency), style: GoogleFonts.poppins(color: currentProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252), fontWeight: FontWeight.w700, fontSize: 12)),
                 ],
               ),
             ],
@@ -1458,8 +1458,8 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
           Row(
             children: [
               _botStat('Trades', '$visibleTradeCount', const Color(0xFF00E5FF)),
-              _botStat('Win Rate', '${winRate.toStringAsFixed(1)}%', const Color(0xFF69F0AE)),
-              _botStat('All-time', _formatAmount(currencyProvider, allTimeProfit, currencyCode: displayCurrency), allTimeProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80)),
+              _botStat('Win Rate', '${winRate.toStringAsFixed(1)}%', const Color(0xFF4CAF50)),
+              _botStat('All-time', _formatAmount(currencyProvider, allTimeProfit, currencyCode: displayCurrency), allTimeProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252)),
             ],
           ),
           const SizedBox(height: 8),
@@ -1467,7 +1467,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
             children: [
               _botStat('ROI', '${roi.toStringAsFixed(1)}%', const Color(0xFFFFA726)),
               _botStat('Avg/Trade', _formatAmount(currencyProvider, avgTrade, decimals: 0, currencyCode: displayCurrency), const Color(0xFFAB47BC)),
-              _botStat('Max Drawdown', _formatAmount(currencyProvider, maxDrawdown, decimals: 0, currencyCode: displayCurrency), const Color(0xFFFF8A80)),
+              _botStat('Max Drawdown', _formatAmount(currencyProvider, maxDrawdown, decimals: 0, currencyCode: displayCurrency), const Color(0xFFFF5252)),
             ],
           ),
           // Account Balance & Equity
@@ -1557,7 +1557,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                         Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            const Icon(Icons.trending_up, color: Color(0xFF69F0AE), size: 16),
+                            const Icon(Icons.trending_up, color: Color(0xFF4CAF50), size: 16),
                             const SizedBox(width: 8),
                             Text('Equity', style: GoogleFonts.poppins(color: Colors.white60, fontSize: 12)),
                           ],
@@ -1618,7 +1618,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                       children: [
                         Icon(
                           isBuy ? Icons.arrow_upward : Icons.arrow_downward,
-                          color: isBuy ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                          color: isBuy ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                           size: 14,
                         ),
                         const SizedBox(width: 6),
@@ -1630,13 +1630,13 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: BoxDecoration(
-                            color: (isBuy ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80)).withOpacity(0.15),
+                            color: (isBuy ? const Color(0xFF4CAF50) : const Color(0xFFFF5252)).withOpacity(0.15),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             isBuy ? 'BUY' : 'SELL',
                             style: GoogleFonts.poppins(
-                              color: isBuy ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                              color: isBuy ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                               fontSize: 10,
                               fontWeight: FontWeight.w700,
                             ),
@@ -1663,7 +1663,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                           Text(
                             'P/L ${_formatAmount(currencyProvider, posProfit, currencyCode: displayCurrency)}',
                             style: GoogleFonts.poppins(
-                              color: posProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                              color: posProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                               fontSize: 11,
                               fontWeight: FontWeight.w700,
                             ),
@@ -2020,9 +2020,9 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                     value: 'clone',
                     child: Row(
                       children: [
-                        const Icon(Icons.copy_all_outlined, color: Color(0xFF69F0AE), size: 18),
+                        const Icon(Icons.copy_all_outlined, color: Color(0xFF4CAF50), size: 18),
                         const SizedBox(width: 8),
-                        Text('Clone Bot', style: GoogleFonts.poppins(color: const Color(0xFF69F0AE), fontSize: 13)),
+                        Text('Clone Bot', style: GoogleFonts.poppins(color: const Color(0xFF4CAF50), fontSize: 13)),
                       ],
                     ),
                   ),
@@ -2056,9 +2056,9 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                     value: 'export_pdf',
                     child: Row(
                       children: [
-                        const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF69F0AE), size: 18),
+                        const Icon(Icons.picture_as_pdf_outlined, color: Color(0xFF4CAF50), size: 18),
                         const SizedBox(width: 8),
-                        Text('Export PDF Report', style: GoogleFonts.poppins(color: const Color(0xFF69F0AE), fontSize: 13)),
+                        Text('Export PDF Report', style: GoogleFonts.poppins(color: const Color(0xFF4CAF50), fontSize: 13)),
                       ],
                     ),
                   ),
@@ -2536,7 +2536,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
               children: [
                 const Text('✅', style: TextStyle(fontSize: 24)),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Bot Created', style: GoogleFonts.poppins(color: const Color(0xFF69F0AE), fontWeight: FontWeight.w700))),
+                Expanded(child: Text('Bot Created', style: GoogleFonts.poppins(color: const Color(0xFF4CAF50), fontWeight: FontWeight.w700))),
               ],
             ),
             content: Column(
@@ -2549,7 +2549,7 @@ class _BotDashboardScreenState extends State<BotDashboardScreen> {
                 const SizedBox(height: 8),
                 _infoRow('Pairs', pairs, Colors.white60),
                 const SizedBox(height: 8),
-                _infoRow('Status', botStarted ? '🟢 Running' : '✅ Created', botStarted ? const Color(0xFF69F0AE) : const Color(0xFFF3BA2F)),
+                _infoRow('Status', botStarted ? '🟢 Running' : '✅ Created', botStarted ? const Color(0xFF4CAF50) : const Color(0xFFF3BA2F)),
               ],
             ),
             actions: [
@@ -2701,7 +2701,7 @@ if (!mounted) return;
               children: [
                 const Text('✅', style: TextStyle(fontSize: 24)),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Bot Created', style: GoogleFonts.poppins(color: const Color(0xFF69F0AE), fontWeight: FontWeight.w700))),
+                Expanded(child: Text('Bot Created', style: GoogleFonts.poppins(color: const Color(0xFF4CAF50), fontWeight: FontWeight.w700))),
               ],
             ),
             content: Column(
@@ -2714,7 +2714,7 @@ if (!mounted) return;
                 const SizedBox(height: 8),
                 _infoRow('Pairs', pairs, Colors.white60),
                 const SizedBox(height: 8),
-                _infoRow('Status', '🟢 Running', const Color(0xFF69F0AE)),
+                _infoRow('Status', '🟢 Running', const Color(0xFF4CAF50)),
               ],
             ),
             actions: [
@@ -2832,11 +2832,11 @@ if (!mounted) return;
         decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: isEnabled
-                ? [const Color(0xFF69F0AE).withOpacity(0.1), const Color(0xFF00E5FF).withOpacity(0.1)]
+                ? [const Color(0xFF4CAF50).withOpacity(0.1), const Color(0xFF00E5FF).withOpacity(0.1)]
                 : [Colors.grey.withOpacity(0.1), Colors.grey.withOpacity(0.05)],
           ),
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: isEnabled ? const Color(0xFF69F0AE).withOpacity(0.3) : Colors.white12),
+          border: Border.all(color: isEnabled ? const Color(0xFF4CAF50).withOpacity(0.3) : Colors.white12),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -2844,7 +2844,7 @@ if (!mounted) return;
           children: [
             Row(
               children: [
-                Icon(Icons.smart_toy, color: isEnabled ? const Color(0xFF69F0AE) : Colors.grey, size: 16),
+                Icon(Icons.smart_toy, color: isEnabled ? const Color(0xFF4CAF50) : Colors.grey, size: 16),
                 const SizedBox(width: 6),
                 Expanded(child: Text(botId, style: GoogleFonts.poppins(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
               ],
@@ -2852,7 +2852,7 @@ if (!mounted) return;
             Text(
               '${_symbolForCode(displayCurrency)}${profit.toStringAsFixed(2)}',
               style: GoogleFonts.poppins(
-                color: profit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                color: profit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
               ),
@@ -2860,12 +2860,12 @@ if (!mounted) return;
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
               decoration: BoxDecoration(
-                color: isEnabled ? const Color(0xFF69F0AE).withOpacity(0.15) : Colors.grey.withOpacity(0.15),
+                color: isEnabled ? const Color(0xFF4CAF50).withOpacity(0.15) : Colors.grey.withOpacity(0.15),
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
                 isEnabled ? 'Active' : 'Inactive',
-                style: GoogleFonts.poppins(color: isEnabled ? const Color(0xFF69F0AE) : Colors.grey, fontSize: 9, fontWeight: FontWeight.w600),
+                style: GoogleFonts.poppins(color: isEnabled ? const Color(0xFF4CAF50) : Colors.grey, fontSize: 9, fontWeight: FontWeight.w600),
               ),
             ),
           ],

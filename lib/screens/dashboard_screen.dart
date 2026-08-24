@@ -18,6 +18,7 @@ import '../services/bot_service.dart';
 import '../services/trading_service.dart';
 import '../utils/environment_config.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_design.dart';
 import '../widgets/kill_switch_banner.dart';
 import '../widgets/logo_widget.dart';
 import 'account_management_screen.dart';
@@ -1591,7 +1592,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     crossAxisSpacing: 12,
                     children: [
                       _buildMetricCard('Balance', _formatReportedAmount(balance, currency), Colors.white, const Color(0xFF00E5FF)),
-                      _buildMetricCard('Equity', _formatReportedAmount(equity, currency), Colors.white, const Color(0xFF69F0AE)),
+                      _buildMetricCard('Equity', _formatReportedAmount(equity, currency), Colors.white, const Color(0xFF4CAF50)),
                       _buildMetricCard(
                         'Free Margin',
                         _formatReportedAmount(((connected['free_margin'] as num?)?.toDouble() ?? 0.0), currency),
@@ -1613,8 +1614,8 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       _buildMetricCard(
                         'Total P/L',
                         _formatReportedAmount(((connected['total_pl'] as num?)?.toDouble() ?? 0.0), currency),
-                        ((connected['total_pl'] as num?)?.toDouble() ?? 0.0) >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
-                        ((connected['total_pl'] as num?)?.toDouble() ?? 0.0) >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                        ((connected['total_pl'] as num?)?.toDouble() ?? 0.0) >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
+                        ((connected['total_pl'] as num?)?.toDouble() ?? 0.0) >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                       ),
                     ],
                   ),
@@ -1629,7 +1630,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       children: [
                         Icon(
                           isIncreasing ? Icons.trending_up : Icons.trending_down,
-                          color: isIncreasing ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                          color: isIncreasing ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -1643,7 +1644,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                             Text(
                               _formatReportedAmount(balanceChange.abs(), currency),
                               style: GoogleFonts.poppins(
-                                color: isIncreasing ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                                color: isIncreasing ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                                 fontSize: 14,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -1730,12 +1731,12 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     switch (status.toLowerCase()) {
       case 'completed':
       case 'approved':
-        return const Color(0xFF69F0AE);
+        return const Color(0xFF4CAF50);
       case 'pending':
         return const Color(0xFFFFB74D);
       case 'failed':
       case 'rejected':
-        return const Color(0xFFFF8A80);
+        return const Color(0xFFFF5252);
       default:
         return Colors.white60;
     }
@@ -1850,12 +1851,12 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: isProfitable ? const Color(0xFF69F0AE).withOpacity(0.15) : const Color(0xFFFF8A80).withOpacity(0.15),
+                            color: isProfitable ? const Color(0xFF4CAF50).withOpacity(0.15) : const Color(0xFFFF5252).withOpacity(0.15),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Icon(
                             Icons.smart_toy,
-                            color: isProfitable ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                            color: isProfitable ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                             size: 18,
                           ),
                         ),
@@ -1894,7 +1895,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         Text(
                           _formatReportedAmount(profit, botCurrency),
                           style: GoogleFonts.poppins(
-                            color: isProfitable ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                            color: isProfitable ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
                           ),
@@ -2040,16 +2041,16 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: const Color(0xFF69F0AE).withOpacity(0.2),
+                                    color: const Color(0xFF4CAF50).withOpacity(0.2),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: const Color(0xFF69F0AE).withOpacity(0.5)),
+                                    border: Border.all(color: const Color(0xFF4CAF50).withOpacity(0.5)),
                                   ),
                                   child: Row(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      const Icon(Icons.play_arrow, color: Color(0xFF69F0AE), size: 16),
+                                      const Icon(Icons.play_arrow, color: Color(0xFF4CAF50), size: 16),
                                       const SizedBox(width: 4),
-                                      Text('Start', style: GoogleFonts.poppins(color: const Color(0xFF69F0AE), fontSize: 12, fontWeight: FontWeight.w500)),
+                                      Text('Start', style: GoogleFonts.poppins(color: const Color(0xFF4CAF50), fontSize: 12, fontWeight: FontWeight.w500)),
                                     ],
                                   ),
                                 ),
@@ -2132,7 +2133,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                                           );
                                         }
                                       },
-                                      child: Text('Delete', style: GoogleFonts.poppins(color: const Color(0xFFFF8A80), fontWeight: FontWeight.bold)),
+                                      child: Text('Delete', style: GoogleFonts.poppins(color: const Color(0xFFFF5252), fontWeight: FontWeight.bold)),
                                     ),
                                   ],
                                 ),
@@ -2141,16 +2142,16 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                             child: Container(
                               padding: const EdgeInsets.symmetric(vertical: 8),
                               decoration: BoxDecoration(
-                                color: const Color(0xFFFF8A80).withOpacity(0.2),
+                                color: const Color(0xFFFF5252).withOpacity(0.2),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: const Color(0xFFFF8A80).withOpacity(0.5)),
+                                border: Border.all(color: const Color(0xFFFF5252).withOpacity(0.5)),
                               ),
                               child: Row(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  const Icon(Icons.delete, color: Color(0xFFFF8A80), size: 16),
+                                  const Icon(Icons.delete, color: Color(0xFFFF5252), size: 16),
                                   const SizedBox(width: 4),
-                                  Text('Delete', style: GoogleFonts.poppins(color: const Color(0xFFFF8A80), fontSize: 12, fontWeight: FontWeight.w500)),
+                                  Text('Delete', style: GoogleFonts.poppins(color: const Color(0xFFFF5252), fontSize: 12, fontWeight: FontWeight.w500)),
                                 ],
                               ),
                             ),
@@ -2260,7 +2261,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                                 Text(
                                   stopReason,
                                   style: GoogleFonts.poppins(
-                                      color: const Color(0xFFFF8A80), fontSize: 10),
+                                      color: const Color(0xFFFF5252), fontSize: 10),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
@@ -2274,8 +2275,8 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                               '${fProfit >= 0 ? '+' : '-'}${_formatReportedAmount(fProfit.abs(), fCurrency)}',
                               style: GoogleFonts.poppins(
                                 color: fProfit >= 0
-                                    ? const Color(0xFF69F0AE)
-                                    : const Color(0xFFFF8A80),
+                                    ? const Color(0xFF4CAF50)
+                                    : const Color(0xFFFF5252),
                                 fontSize: 13,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -2305,17 +2306,17 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
   Widget _glassCard({required Widget child, LinearGradient? gradient}) => Container(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.all(AppDesign.space16),
       decoration: BoxDecoration(
         gradient: gradient,
-        color: gradient == null ? Colors.white.withOpacity(0.06) : null,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withOpacity(0.1)),
+        color: gradient == null ? Colors.white.withOpacity(AppDesign.opacitySubtle + 0.02) : null,
+        borderRadius: BorderRadius.circular(AppDesign.radiusMd),
+        border: Border.all(color: Colors.white.withOpacity(AppDesign.opacityBorder)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.2),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: AppDesign.elevationLg,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
@@ -2328,7 +2329,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [Color(0xFF0A0E21), Color(0xFF1A1F3A), Color(0xFF0A0E21)],
+          colors: [Color(0xFF0A0E21), Color(0xFF131831), Color(0xFF0A0E21)],
         ),
       ),
       child: SingleChildScrollView(
@@ -2472,7 +2473,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               actions: [
                 _FeatureAction('Reports', Icons.assessment, const Color(0xFFFF6E40), () => _pushScreen(const ConsolidatedReportsScreen())),
                 _FeatureAction('Financials', Icons.attach_money, const Color(0xFF26C6DA), _openFinancials),
-                _FeatureAction('Commissions', Icons.monetization_on, const Color(0xFF69F0AE), () => _pushScreen(const CommissionDashboardScreen())),
+                _FeatureAction('Commissions', Icons.monetization_on, const Color(0xFF4CAF50), () => _pushScreen(const CommissionDashboardScreen())),
                 _FeatureAction('Wallet', Icons.account_balance_wallet, const Color(0xFFF0B90B), () => _pushScreen(const UserWalletScreen())),
                 _FeatureAction('Activity Log', Icons.history, const Color(0xFF8D6E63), () => _pushScreen(const ActivityLogScreen())),
                 _FeatureAction('Referrals', Icons.group_add, const Color(0xFF66BB6A), _openReferralDashboard),
@@ -2724,7 +2725,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             icon: Icons.account_balance_wallet,
             title: 'Multi-Currency Support',
             description: 'Trade forex, crypto, commodities, and indices with unified wallet',
-            color: const Color(0xFF69F0AE),
+            color: const Color(0xFF4CAF50),
           ),
         ],
       ),
@@ -2835,7 +2836,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 final prevPrice = candles.length > 1 ? candles[candles.length - 2].close : lastPrice;
                 final priceChange = lastPrice - prevPrice;
                 final isUp = priceChange >= 0;
-                final priceColor = isUp ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80);
+                final priceColor = isUp ? const Color(0xFF4CAF50) : const Color(0xFFFF5252);
 
                 return Stack(
                   children: [
@@ -2937,7 +2938,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             children: [
               _buildPriceIndicator('Bid', '1.0852', const Color(0xFF4CAF50)),
               const SizedBox(width: 16),
-              _buildPriceIndicator('Ask', '1.0854', const Color(0xFFFF8A80)),
+              _buildPriceIndicator('Ask', '1.0854', const Color(0xFFFF5252)),
               const SizedBox(width: 16),
               _buildPriceIndicator('Spread', '2.0 pips', const Color(0xFFFFB74D)),
             ],
@@ -2991,14 +2992,14 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             children: [
               Icon(
                 isUp ? Icons.trending_up : Icons.trending_down,
-                color: isUp ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                color: isUp ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                 size: 16,
               ),
               const SizedBox(width: 6),
               Text(
                 '${(lastPrice - prevPrice).toStringAsFixed(4)}',
                 style: GoogleFonts.poppins(
-                  color: isUp ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                  color: isUp ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
                 ),
@@ -3026,7 +3027,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   LineChartBarData(
                     spots: spots,
                     isCurved: true,
-                    color: isUp ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                    color: isUp ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                     barWidth: 2,
                     isStrokeCapRound: true,
                     dotData: FlDotData(show: false),
@@ -3334,10 +3335,10 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                             height: 8,
                             decoration: BoxDecoration(
                               shape: BoxShape.circle,
-                              color: const Color(0xFF69F0AE),
+                              color: const Color(0xFF4CAF50),
                               boxShadow: [
                                 BoxShadow(
-                                  color: const Color(0xFF69F0AE).withOpacity(0.4 * (0.6 + _livePulse.value * 0.4)),
+                                  color: const Color(0xFF4CAF50).withOpacity(0.4 * (0.6 + _livePulse.value * 0.4)),
                                   blurRadius: 6,
                                   spreadRadius: 1,
                                 ),
@@ -3574,7 +3575,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                           ? const Color(0xFFFFB74D).withOpacity(0.15)
                           : (connected || balance > 0)
                               ? brokerColor.withOpacity(0.15)
-                              : const Color(0xFFFF8A80).withOpacity(0.15),
+                              : const Color(0xFFFF5252).withOpacity(0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
@@ -3583,7 +3584,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                           : (connected || balance > 0) ? _brokerIcon(broker) : Icons.error_outline,
                       color: isStale
                           ? const Color(0xFFFFB74D)
-                          : (connected || balance > 0) ? brokerColor : const Color(0xFFFF8A80),
+                          : (connected || balance > 0) ? brokerColor : const Color(0xFFFF5252),
                       size: 20,
                     ),
                   ),
@@ -3619,7 +3620,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         Text('Account: $accountNum',
                           style: GoogleFonts.poppins(color: Colors.white38, fontSize: 10)),
                         if (!connected && balance == 0 && error != null)
-                          Text(error, style: GoogleFonts.poppins(color: const Color(0xFFFF8A80), fontSize: 10)),
+                          Text(error, style: GoogleFonts.poppins(color: const Color(0xFFFF5252), fontSize: 10)),
                         if (warning != null)
                           Text(warning, style: GoogleFonts.poppins(color: const Color(0xFFFFB74D), fontSize: 10)),
                       ],
@@ -3674,7 +3675,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             totalProfit >= 0 ? Icons.trending_up : Icons.trending_down,
             _formatCurrencyBreakdown(totalProfitByCurrency, decimals: 0),
             'Profit',
-            totalProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+            totalProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
           ),
         ),
       ],
@@ -3698,8 +3699,8 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
             color: isRunning
-                ? const Color(0xFF69F0AE).withOpacity(0.15)
-                : const Color(0xFFFF8A80).withOpacity(0.15),
+                ? const Color(0xFF4CAF50).withOpacity(0.15)
+                : const Color(0xFFFF5252).withOpacity(0.15),
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
@@ -3707,13 +3708,13 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               Icon(
                 isRunning ? Icons.circle : Icons.stop,
                 size: 8,
-                color: isRunning ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                color: isRunning ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
               ),
               const SizedBox(width: 4),
               Text(
                 isRunning ? 'Running' : 'Stopped',
                 style: GoogleFonts.poppins(
-                  color: isRunning ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                  color: isRunning ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
                 ),
@@ -3851,14 +3852,14 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: totalProfit >= 0
-                      ? const Color(0xFF69F0AE).withOpacity(0.15)
-                      : const Color(0xFFFF8A80).withOpacity(0.15),
+                      ? const Color(0xFF4CAF50).withOpacity(0.15)
+                      : const Color(0xFFFF5252).withOpacity(0.15),
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
                   totalProfit >= 0 ? 'Profitable' : 'In Drawdown',
                   style: GoogleFonts.poppins(
-                    color: totalProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                    color: totalProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                   ),
@@ -3871,7 +3872,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             child: Text(
               _formatCurrencyBreakdown(totalProfitByCurrency),
               style: GoogleFonts.poppins(
-                color: totalProfit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                color: totalProfit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                 fontSize: 36,
                 fontWeight: FontWeight.bold,
               ),
@@ -3968,9 +3969,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
     final chartColors = [
       const Color(0xFF00E5FF),
-      const Color(0xFF69F0AE),
+      const Color(0xFF4CAF50),
       const Color(0xFFFFD600),
-      const Color(0xFFFF8A80),
+      const Color(0xFFFF5252),
       const Color(0xFF7C4DFF),
       const Color(0xFFFF6E40),
       const Color(0xFF40C4FF),
@@ -4078,7 +4079,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         if (winningBots > 0)
                           PieChartSectionData(
                             value: winningBots.toDouble(),
-                            color: const Color(0xFF69F0AE),
+                            color: const Color(0xFF4CAF50),
                             radius: 40,
                             title: '$winningBots',
                             titleStyle: GoogleFonts.poppins(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
@@ -4086,7 +4087,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                         if (losingBots > 0)
                           PieChartSectionData(
                             value: losingBots.toDouble(),
-                            color: const Color(0xFFFF8A80),
+                            color: const Color(0xFFFF5252),
                             radius: 40,
                             title: '$losingBots',
                             titleStyle: GoogleFonts.poppins(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
@@ -4108,9 +4109,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
               Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _chartLegendItem(const Color(0xFF69F0AE), 'Winning', winningBots),
+                  _chartLegendItem(const Color(0xFF4CAF50), 'Winning', winningBots),
                   const SizedBox(height: 10),
-                  _chartLegendItem(const Color(0xFFFF8A80), 'Losing', losingBots),
+                  _chartLegendItem(const Color(0xFFFF5252), 'Losing', losingBots),
                   const SizedBox(height: 10),
                   _chartLegendItem(Colors.white30, 'Break Even', breakEven),
                 ],
@@ -4133,37 +4134,38 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   /// Build individual metric card for account dashboard
   Widget _buildMetricCard(String label, String value, Color valueColor, Color accentColor) => Container(
       decoration: BoxDecoration(
-        border: Border.all(color: accentColor.withOpacity(0.3), width: 1.5),
-        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: accentColor.withOpacity(AppDesign.opacityBorderStrong)),
+        borderRadius: BorderRadius.circular(AppDesign.radiusMd),
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
             accentColor.withOpacity(0.08),
-            accentColor.withOpacity(0.02),
+            accentColor.withOpacity(AppDesign.opacitySubtle),
           ],
         ),
       ),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.all(AppDesign.space12),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            label,
+            label.toUpperCase(),
             style: GoogleFonts.poppins(
-              color: Colors.white60,
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
+              color: Colors.white.withOpacity(AppDesign.opacityMuted),
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.5,
             ),
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: AppDesign.space6),
           Text(
             value,
             style: GoogleFonts.poppins(
               color: valueColor,
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
@@ -4279,7 +4281,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       getDotPainter: (spot, percent, bar, index) =>
                           FlDotCirclePainter(
                         radius: 4,
-                        color: spot.y >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                        color: spot.y >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                         strokeColor: Colors.white,
                         strokeWidth: 1.5,
                       ),
@@ -4374,9 +4376,9 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     final topPairs = symbolProfits.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
     final pairColors = [
       const Color(0xFF00E5FF),
-      const Color(0xFF69F0AE),
+      const Color(0xFF4CAF50),
       const Color(0xFFFFD600),
-      const Color(0xFFFF8A80),
+      const Color(0xFFFF5252),
       const Color(0xFF7C4DFF),
     ];
 
@@ -4439,7 +4441,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                             child: LinearProgressIndicator(
                               value: barWidth.toDouble(),
                               backgroundColor: Colors.white10,
-                              valueColor: AlwaysStoppedAnimation(pair.value >= 0 ? color : const Color(0xFFFF8A80)),
+                              valueColor: AlwaysStoppedAnimation(pair.value >= 0 ? color : const Color(0xFFFF5252)),
                               minHeight: 6,
                             ),
                           ),
@@ -4450,7 +4452,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     Text(
                       _formatCurrencyAmount(pair.value, currency),
                       style: GoogleFonts.poppins(
-                        color: pair.value >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                        color: pair.value >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                         fontWeight: FontWeight.w600,
                         fontSize: 13,
                       ),
@@ -4526,13 +4528,13 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       height: 36,
                       decoration: BoxDecoration(
                         color: direction == 'BUY'
-                            ? const Color(0xFF69F0AE).withOpacity(0.15)
-                            : const Color(0xFFFF8A80).withOpacity(0.15),
+                            ? const Color(0xFF4CAF50).withOpacity(0.15)
+                            : const Color(0xFFFF5252).withOpacity(0.15),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Icon(
                         direction == 'BUY' ? Icons.arrow_upward : Icons.arrow_downward,
-                        color: direction == 'BUY' ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                        color: direction == 'BUY' ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                         size: 18,
                       ),
                     ),
@@ -4555,7 +4557,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     Text(
                       '${profit >= 0 ? "+" : ""}${_formatCurrencyAmount(profit, tradeCurrency)}',
                       style: GoogleFonts.poppins(
-                        color: profit >= 0 ? const Color(0xFF69F0AE) : const Color(0xFFFF8A80),
+                        color: profit >= 0 ? const Color(0xFF4CAF50) : const Color(0xFFFF5252),
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
                       ),
@@ -4617,7 +4619,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       {
         'label': 'Commissions',
         'icon': Icons.monetization_on,
-        'color': const Color(0xFF69F0AE),
+        'color': const Color(0xFF4CAF50),
         'onTap': () => _pushScreen(const CommissionDashboardScreen()),
       },
       {
@@ -4872,7 +4874,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             },
           ),
           ListTile(
-            leading: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF69F0AE)),
+            leading: const Icon(Icons.swap_horiz_rounded, color: Color(0xFF4CAF50)),
             title: const Text('Trades', style: TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
@@ -4905,7 +4907,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             },
           ),
           ListTile(
-            leading: const Icon(Icons.add_circle_outline, color: Color(0xFF69F0AE)),
+            leading: const Icon(Icons.add_circle_outline, color: Color(0xFF4CAF50)),
             title: const Text('Create New Bot', style: TextStyle(color: Colors.white)),
             subtitle: const Text('Strategies, symbols & risk setup', style: TextStyle(color: Colors.white38, fontSize: 11)),
             onTap: () {
@@ -4950,7 +4952,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             },
           ),
           ListTile(
-            leading: const Icon(Icons.people, color: Color(0xFF69F0AE)),
+            leading: const Icon(Icons.people, color: Color(0xFF4CAF50)),
             title: const Text('Manage Accounts', style: TextStyle(color: Colors.white)),
             onTap: () {
               Navigator.pop(context);
@@ -5000,7 +5002,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             },
           ),
           ListTile(
-            leading: const Icon(Icons.monetization_on, color: Color(0xFF69F0AE)),
+            leading: const Icon(Icons.monetization_on, color: Color(0xFF4CAF50)),
             title: const Text('Commissions', style: TextStyle(color: Colors.white)),
             subtitle: const Text('Earnings, withdrawals & referral income', style: TextStyle(color: Colors.white38, fontSize: 11)),
             onTap: () {
@@ -5075,7 +5077,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
           const Divider(color: Colors.white12),
           ListTile(
-            leading: const Icon(Icons.group_add, color: Color(0xFF69F0AE)),
+            leading: const Icon(Icons.group_add, color: Color(0xFF4CAF50)),
             title: const Text('My Referrals', style: TextStyle(color: Colors.white)),
             subtitle: const Text('Invite friends & earn 5%', style: TextStyle(color: Colors.white38, fontSize: 11)),
             onTap: () {
@@ -5090,7 +5092,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             },
           ),
           ListTile(
-            leading: const Icon(Icons.admin_panel_settings, color: Color(0xFFFF8A80)),
+            leading: const Icon(Icons.admin_panel_settings, color: Color(0xFFFF5252)),
             title: const Text('Admin Dashboard', style: TextStyle(color: Colors.white)),
             subtitle: const Text('View all users & earnings', style: TextStyle(color: Colors.white38, fontSize: 11)),
             onTap: () {
@@ -5162,8 +5164,8 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
           ),
           const Divider(color: Colors.white12),
           ListTile(
-            leading: const Icon(Icons.logout, color: Color(0xFFFF8A80)),
-            title: const Text('Logout', style: TextStyle(color: Color(0xFFFF8A80))),
+            leading: const Icon(Icons.logout, color: Color(0xFFFF5252)),
+            title: const Text('Logout', style: TextStyle(color: Color(0xFFFF5252))),
             onTap: () {
               context.read<AuthService>().logout();
               Navigator.pop(context);
