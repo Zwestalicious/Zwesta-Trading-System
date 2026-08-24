@@ -9443,6 +9443,9 @@ class BinanceConnection(BrokerConnection):
                 failed.append(f"{planned['label']} skipped because stop price was invalid")
                 continue
 
+            # Determine position side for hedge mode
+            position_side = str(entry_side).upper()  # BUY position -> LONG, SELL position -> SHORT
+
             resp = self._request_with_time_retry(
                 'POST',
                 f'{self.fapi_url}/v1/order',
@@ -9478,10 +9481,36 @@ class BinanceConnection(BrokerConnection):
                 error_payload = {}
 
             if error_code == -4120:
+                # Hedge Mode: closePosition not supported, retry with reduceOnly + positionSide
                 unsupported_close_position_algo = True
-                failed.append(
-                    f"{planned['label']} skipped: Binance rejected closePosition algo orders for this account/order mode (code -4120)"
+                fallback_resp = self._request_with_time_retry(
+                    'POST',
+                    f'{self.fapi_url}/v1/order',
+                    headers=self._headers(),
+                    params={
+                        'symbol': instrument,
+                        'side': exit_side,
+                        'type': planned['type'],
+                        'stopPrice': formatted_stop_price,
+                        'reduceOnly': 'true',
+                        'positionSide': position_side,
+                        'workingType': 'CONTRACT_PRICE',
+                    },
+                    timeout=15,
                 )
+                if fallback_resp.status_code in (200, 201):
+                    order_payload = fallback_resp.json() if fallback_resp.content else {}
+                    placed.append({
+                        'label': planned['label'],
+                        'type': planned['type'],
+                        'orderId': order_payload.get('orderId', ''),
+                        'stopPrice': formatted_stop_price,
+                        'status': order_payload.get('status', ''),
+                    })
+                else:
+                    failed.append(
+                        f"{planned['label']} skipped: Binance rejected both closePosition and reduceOnly orders (code {error_code})"
+                    )
             else:
                 failed.append(f"{planned['label']} rejected: {error_message}")
 
@@ -37989,7 +38018,7 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
         # for crypto positions that oscillate in smaller ranges.
         _roi_stagnation_threshold = 0.5 if broker_name == 'Binance' else 2.5
         _binance_profit_close_threshold = 0.20
-        _binance_peak_stagnation_minutes = _position_age_minutes(tracked.get('peakProfitUpdatedAt'))
+        _binance_peak_stagnation_minutes = _position_age_minutes(tracked.get('peakRoiPctUpdatedAt'))
         roi_close_enabled = (
             broker_name == 'Binance'
             and peak_roi_pct >= _roi_stagnation_threshold
@@ -38167,9 +38196,7 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
         # Vol stablecoins / majors already fine. For high-tick metals & oil on Exness
         # the default per-trade cap lets a single violent leg (XAG -1.80, XAU -2.60)
         # erase dozens of small wins. Clamp these so volatility is contained.
-        _volatile_symbol_cap_applied = False
         if base_symbol and base_symbol.upper() in ('XAGUSD', 'XAUSD'):
-            _volatile_symbol_cap_applied = True
             if mode_value == 'live':
                 _hard_loss_limit = min(_hard_loss_limit, 1.25)
             else:
@@ -38246,12 +38273,6 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
             )
 
         _locked_profit_floor = _safe_float(tracked.get('lockedProfitFloor'), 0.0)
-        _profit_retrace_guard_armed = (
-            bool(tracked.get('profitProtectionArmed'))
-            and protection_hold_satisfied
-            and peak_profit > 0
-            and _locked_profit_floor > 0
-        )
         _hard_loss_min_age = 3.0 if is_binance_position else (7.0 if is_exness_forex_position else 15.0)
         if base_symbol == 'GBPUSD':
             _hard_loss_min_age = min(_hard_loss_min_age, 4.0)
