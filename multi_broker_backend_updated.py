@@ -2296,7 +2296,7 @@ if ENVIRONMENT == 'LIVE' and API_KEY == 'your_generated_api_key_here_change_in_p
 
 # ==================== WORKER POOL CONFIG ====================
 DEPLOYMENT_MODE = os.getenv('DEPLOYMENT_MODE', 'LOCAL').upper()  # LOCAL or VPS
-CONFIGURED_WORKER_COUNT = max(0, int(os.getenv('WORKER_COUNT', '0')))  # Raw env value
+CONFIGURED_WORKER_COUNT = max(0, int(os.getenv('WORKER_COUNT', '2' if DEPLOYMENT_MODE == 'VPS' else '0')))  # Default: 2 workers on VPS, 0 local
 WORKER_COUNT = CONFIGURED_WORKER_COUNT
 if DEPLOYMENT_MODE == 'LOCAL' and WORKER_COUNT > 2:
     # This backend only needs one worker per local Exness terminal: live + demo.
@@ -2395,7 +2395,7 @@ trade_router = init_trade_router(
 EXNESS_DEMO = {
     'broker': 'Exness',
     'account': int(os.getenv('EXNESS_DEMO_ACCOUNT', '298997455').strip()),
-    'password': os.getenv('EXNESS_DEMO_PASSWORD', 'Zwesta@1985').strip(),
+    'password': os.getenv('EXNESS_DEMO_PASSWORD', '').strip(),
     'server': os.getenv('EXNESS_DEMO_SERVER', 'Exness-MT5Trial9').strip(),
     'is_live': False,
 }
@@ -21035,6 +21035,9 @@ def evaluate_micro_volatility_signal(symbol: str, market_data: Dict) -> Dict:
         }
 
 
+_signal_eval_cache: Dict[str, Tuple[float, Dict]] = {}
+_SIGNAL_CACHE_TTL = 30.0  # seconds
+
 def evaluate_real_trade_signal(symbol: str, market_data: Dict) -> Dict:
     """Evaluate a REAL trading signal based on technical indicators - OPTIMIZED FOR HIGH WIN RATE
     
@@ -21054,7 +21057,12 @@ def evaluate_real_trade_signal(symbol: str, market_data: Dict) -> Dict:
     4. Skip RANGING markets entirely (no low-probability trades)
     5. Higher signal threshold reduces false entries
     """
+    global _signal_eval_cache
     try:
+        _now = time.time()
+        _cached = _signal_eval_cache.get(symbol)
+        if _cached and (_now - _cached[0]) < _SIGNAL_CACHE_TTL:
+            return _cached[1]
         # Get price data from market_data
         current_price = market_data.get('current_price', 0) or market_data.get('price', 0)
         if current_price <= 0:
@@ -21319,7 +21327,7 @@ def evaluate_real_trade_signal(symbol: str, market_data: Dict) -> Dict:
                     entry_window = micro_signal_eval.get('entry_window_seconds', 8)
                     entry_reason.append(f'MICRO: {micro_signal_eval.get("micro_reason", "")} [{entry_window}s window]')
         
-        return {
+        _result = {
             'signal': signal,
             'strength': strength,
             'rsi': round(rsi, 1),
@@ -21329,6 +21337,8 @@ def evaluate_real_trade_signal(symbol: str, market_data: Dict) -> Dict:
             'micro_signal': micro_signal if micro_signal != 'HOLD' else None,
             'entry_window_seconds': entry_window,  # NEW: For time-limited quick entries
         }
+        _signal_eval_cache[symbol] = (time.time(), _result)
+        return _result
     
     except Exception as e:
         logger.warning(f"Error evaluating signal for {symbol}: {e}")
@@ -24167,16 +24177,14 @@ def evaluate_open_positions_for_reallocation(bot_config, opportunities, active_c
         # Signal weakened below threshold
         signal_weak = current_strength < signal_threshold * 0.6  # Below 60% of threshold
         
-        eth_reversal = signal_reversed and pos_symbol.upper().startswith('ETHUSD')
-        if signal_reversed or signal_weak or eth_reversal:
-            if profit > 0 or signal_weak or eth_reversal:
-                close_candidates.append({
-                    'ticket': ticket_str,
-                    'symbol': pos_symbol,
-                    'profit': profit,
-                    'strength': current_strength,
-                    'reason': 'SIGNAL_REVERSED' if signal_reversed else 'SIGNAL_WEAKENED',
-                })
+        if signal_reversed or signal_weak:
+            close_candidates.append({
+                'ticket': ticket_str,
+                'symbol': pos_symbol,
+                'profit': profit,
+                'strength': current_strength,
+                'reason': 'SIGNAL_REVERSED' if signal_reversed else 'SIGNAL_WEAKENED',
+            })
     
     if not close_candidates:
         return [], []
@@ -24198,8 +24206,8 @@ def evaluate_open_positions_for_reallocation(bot_config, opportunities, active_c
                     open_symbols.add(opp['symbol'])  # Mark as taken
                     break
         
-        # Only close up to 1 position per cycle to avoid whipsaw
-        if len(tickets_to_close) >= 1:
+        # Close up to 2 positions per cycle to avoid whipsaw while allowing faster reallocation
+        if len(tickets_to_close) >= 2:
             break
     
     return tickets_to_close, replacement_symbols
@@ -26563,12 +26571,14 @@ def _queue_or_launch_bot_runtime(
     # If a worker-pool manager is available, prefer it. If the dispatch fails,
     # the function must still fall back to the local-thread path rather than
     # silently returning a false-positive success state.
-    if manager and manager.dispatch_bot(bot_id, user_id, bot_config, bot_credentials or {}):
-        if manager is binance_worker_pool_manager:
-            logger.info(f"🚀 {log_label} {bot_id}: Dispatched to Binance worker pool")
-            return 'binance-worker'
-        logger.info(f"🚀 {log_label} {bot_id}: Dispatched to worker pool")
-        return 'worker-pool'
+    if manager:
+        if manager.dispatch_bot(bot_id, user_id, bot_config, bot_credentials or {}):
+            if manager is binance_worker_pool_manager:
+                logger.info(f"🚀 {log_label} {bot_id}: Dispatched to Binance worker pool")
+                return 'binance-worker'
+            logger.info(f"🚀 {log_label} {bot_id}: Dispatched to worker pool")
+            return 'worker-pool'
+        logger.warning(f"⚠️ {log_label} {bot_id}: Worker pool dispatch failed — falling back to local thread")
 
     existing_thread = bot_threads.get(bot_id)
     if existing_thread is not None and existing_thread.is_alive():
@@ -37876,16 +37886,7 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
             activation_amount * _safe_float(effective_protection.get('breakEvenActivationShare'), 0.5),
         )
         meaningful_profit_peak = round(
-            max(
-                0.1,
-                min(
-                    activation_amount,
-                    max(
-                        _safe_float(effective_protection.get('breakEvenBufferProfit'), 0.0),
-                        break_even_activation_amount * 0.5,
-                    ),
-                ),
-            ),
+            max(0.1, activation_amount * 0.5),
             2,
         )
         current_profit = _resolve_open_position_profit({**tracked, **current_position})
@@ -37931,7 +37932,7 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
         # depress the floor for an index runner whose peak is below the high-vol
         # meaningful_profit_peak gate (e.g. US30 peaking at +3.50 with a ~10 gate).
         if peak_profit < _meaningful_profit_floor and not (is_exness_index_runner_position or broker_name == 'Binance'):
-            _effective_peak_lock_share = 0.65  # allow up to 35% retrace on small peaks
+            _effective_peak_lock_share = 0.80  # lock at 80% of small peaks (20% retrace tolerance)
         else:
             _effective_peak_lock_share = hard_peak_lock_share
         hard_peak_lock_floor = round(max(0.0, peak_profit * _effective_peak_lock_share), 2)
@@ -37945,8 +37946,17 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
 
         if tracked['peakProfit'] >= activation_amount:
             tracked['profitProtectionArmed'] = True
+        elif tracked.get('profitProtectionArmed') and current_profit < activation_amount * 0.3:
+            # Disarm if profit drops below 30% of activation — the old locked floor
+            # from a previous peak is no longer relevant and would cause premature exits
+            tracked['profitProtectionArmed'] = False
+            tracked['lockedProfitFloor'] = 0.0
+            # minLockedProfit is a floor target, but it must never exceed 80% of peak
+            # otherwise it would force close on the very first tick below peak
+            _min_lock_target = _safe_float(effective_protection.get('minLockedProfit'), 0.0)
+            _capped_min_lock = min(_min_lock_target, peak_profit * 0.8) if peak_profit > 0 else 0.0
             protected_floor = max(
-                _safe_float(effective_protection.get('minLockedProfit'), 0.0),
+                _capped_min_lock,
                 tracked['peakProfit'] * (1.0 - (_safe_float(effective_protection.get('retraceClosePercent'), 35.0) / 100.0)),
             )
             tracked['lockedProfitFloor'] = round(
@@ -37961,7 +37971,9 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
             )
 
         if tracked['peakProfit'] > 0 and not tracked.get('peakProfitUpdatedAt'):
-            tracked['peakProfitUpdatedAt'] = tracked.get('entryTime') or datetime.now().isoformat()
+            # Only set the timestamp when peak is first established, not on every cycle
+            # Using entryTime as fallback would inflate the stagnation timer incorrectly
+            tracked['peakProfitUpdatedAt'] = datetime.now().isoformat()
 
         # Initialize local decision variables for protected close evaluation.
         close_reason = None
@@ -49431,7 +49443,6 @@ def _run_binance_spot_tracker(bot_id: str, bot_config: Dict[str, Any], active_co
                         _spot_age_seconds = 0.0
                 if _spot_age_seconds < MIN_TIME_IN_POSITION_SECONDS:
                     continue
-                continue
 
             logger.info(
                 f"🎯 Bot {bot_id}: {trigger_reason} for {tracked_symbol} @ {live_price:.6f} "
