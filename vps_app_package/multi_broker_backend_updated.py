@@ -21093,6 +21093,22 @@ def evaluate_real_trade_signal(symbol: str, market_data: Dict) -> Dict:
             'micro_signal': micro_signal if micro_signal != 'HOLD' else None,
             'entry_window_seconds': entry_window,  # NEW: For time-limited quick entries
         }
+
+        # ─── ML SIGNAL FUSION ───
+        try:
+            from ml_predictor import get_predictor, fuse_signals
+            predictor = get_predictor()
+            if predictor.is_ready and signal != 'NEUTRAL' and strength >= 40:
+                ml_pred = predictor.predict_from_signal(_result, symbol)
+                if ml_pred.get('confidence', 0) >= 15.0:
+                    fused = fuse_signals(_result, ml_pred)
+                    _result = fused
+        except ImportError:
+            pass
+        except Exception as e:
+            logger.debug(f"[ML] Fusion error for {symbol}: {e}")
+        # ─── END ML FUSION ───
+
         _signal_eval_cache[symbol] = (time.time(), _result)
         return _result
     
