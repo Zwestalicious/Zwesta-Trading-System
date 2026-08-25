@@ -59630,6 +59630,62 @@ if __name__ == '__main__':
         f"Expired demo bot cleanup worker started "
         f"(retention={DEMO_PROMOTION_CLEANUP_RETENTION_HOURS:.0f}h, interval={DEMO_PROMOTION_CLEANUP_INTERVAL_SECONDS}s)"
     )
+
+    # ─── AUTO-RETRAIN ML MODELS ───
+    _ml_retrain_interval_hours = int(os.getenv('ML_RETRAIN_INTERVAL_HOURS', '72'))
+    _ml_retrain_min_trades = int(os.getenv('ML_RETRAIN_MIN_TRADES', '50'))
+
+    def _ml_auto_retrain_worker():
+        """Background worker that retrains ML models periodically."""
+        logger.info(f"[MLAutoRetrain] Scheduler started — retrain every {_ml_retrain_interval_hours}h")
+        while True:
+            try:
+                time.sleep(_ml_retrain_interval_hours * 3600)
+                logger.info("[MLAutoRetrain] Starting scheduled ML retrain...")
+                history_dirs = [
+                    os.path.join(os.path.dirname(__file__), 'History'),
+                    'C:\\zwesta-app\\History',
+                ]
+                csv_files = []
+                for hdir in history_dirs:
+                    if os.path.isdir(hdir):
+                        for fname in os.listdir(hdir):
+                            if fname.endswith('.csv') and 'binance' not in fname.lower() and 'tradinglog' not in fname.lower():
+                                csv_files.append(os.path.join(hdir, fname))
+                if not csv_files:
+                    logger.info("[MLAutoRetrain] No history files found — skipping")
+                    continue
+                try:
+                    from ml_trainer import train_from_csvs
+                    entry_metrics = train_from_csvs(csv_files)
+                    if entry_metrics.get('success'):
+                        logger.info(f"[MLAutoRetrain] Entry model: {entry_metrics['accuracy']:.1f}%")
+                except Exception as e:
+                    logger.warning(f"[MLAutoRetrain] Entry error: {e}")
+                try:
+                    from ml_exit_manager import train_exit_model_from_trades
+                    exit_metrics = train_exit_model_from_trades(csv_files)
+                    if exit_metrics.get('success'):
+                        logger.info(f"[MLAutoRetrain] Exit model: {exit_metrics['accuracy']:.1f}%")
+                except Exception as e:
+                    logger.warning(f"[MLAutoRetrain] Exit error: {e}")
+                try:
+                    from ml_pipeline import get_ml_pipeline
+                    pipeline = get_ml_pipeline()
+                    pipeline.regime_filter._load_model()
+                    pipeline.signal_scorer._load_model()
+                    pipeline.dynamic_sltp._load_model()
+                    pipeline.smart_exit._load_model()
+                    logger.info("[MLAutoRetrain] Models reloaded")
+                except Exception as e:
+                    logger.warning(f"[MLAutoRetrain] Reload error: {e}")
+            except Exception as e:
+                logger.error(f"[MLAutoRetrain] Worker error: {e}")
+                time.sleep(3600)
+
+    ml_retrain_thread = threading.Thread(target=_ml_auto_retrain_worker, name='ml-auto-retrain', daemon=True)
+    ml_retrain_thread.start()
+    logger.info(f"[MLAutoRetrain] Auto-retrain started (interval: {_ml_retrain_interval_hours}h)")
     
     # The HTTP server now runs in its own background thread (_serve_http), launched
     # earlier in startup, so port 9000 opens within seconds. Here we just keep the
