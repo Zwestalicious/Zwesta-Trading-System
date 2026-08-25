@@ -32929,12 +32929,10 @@ def test_broker_connection():
                     'is_live': is_live,
                     'path': mt5_terminal_path,
                     'is_manual_test': True,
-                    # Keep well below the Dart client timeout (raised to 120s). Slow VPS
-                    # terminals need a longer single IPC window before mt5.initialize()
-                    # returns -10014 "future not completed". Tunable via env so it can be
-                    # raised further on very slow hosts without code changes.
-                    'lock_timeout': int(os.getenv('ZWESTA_MT5_LOCK_TIMEOUT', '3')),
-                    'init_timeout': int(os.getenv('ZWESTA_MT5_INIT_TIMEOUT', '10')),
+                    # VPS terminals need longer IPC windows. The "future not completed"
+                    # error (-10014) means the MT5 IPC channel isn't ready yet.
+                    'lock_timeout': int(os.getenv('ZWESTA_MT5_LOCK_TIMEOUT', '10')),
+                    'init_timeout': int(os.getenv('ZWESTA_MT5_INIT_TIMEOUT', '30')),
                 })
 
                 if quick_test_conn.connect():
@@ -32963,12 +32961,14 @@ def test_broker_connection():
                             'error': quick_error_message,
                         }), 401
 
-                    # Any non-auth quick test failure → skip the warmup path entirely.
-                    # The warm connection uses the same MT5 terminal; if the quick test
-                    # (5s lock, 15s init) already failed for a non-auth reason, the warm
-                    # path (60s lock) will usually also fail — and worse, it runs
-                    # mt5.initialize() without is_manual_test=True, which can add the
-                    # account to _failed_auth_accounts and poison future retries.
+                    # Provide user-friendly error for IPC/timeout issues
+                    if quick_error_code in ('INIT_FAILED', 'CONNECT_FAILED', 'VERIFICATION_FAILED') or 'future not completed' in str(quick_error_message).lower():
+                        quick_error_message = (
+                            'MT5 terminal is busy or not fully connected. '
+                            'Please ensure MetaTrader 5 is running on your VPS, then try again. '
+                            'If MT5 was just started, wait 30-60 seconds for it to fully load before testing.'
+                        )
+
                     skip_exness_warmup = True
 
                     deferred_verification_warning = (
