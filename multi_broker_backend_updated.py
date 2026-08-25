@@ -24049,6 +24049,27 @@ def scan_all_opportunities(strategy_func, account_id, risk_per_trade, signal_thr
             )
             raw_signal = evaluate_real_trade_signal(symbol, market_data)
             raw_strength = raw_signal.get('strength', 0)
+
+            # ─── ML PIPELINE: Full evaluation (regime + score + size + SL/TP) ───
+            try:
+                from ml_pipeline import get_ml_pipeline
+                ml_pipeline = get_ml_pipeline()
+                if ml_pipeline:
+                    existing_pos = [p.get('symbol', '') for p in _get_open_positions_for_bot(bot_config)] if bot_config else []
+                    ml_eval = ml_pipeline.evaluate_entry(symbol, market_data, raw_signal, existing_pos)
+                    if ml_eval['should_trade']:
+                        raw_signal['ml_pipeline'] = ml_eval
+                        raw_signal['entry_reason'] = raw_signal.get('entry_reason', '') + f" | [ML: {ml_eval['reason']}]"
+                        logger.debug(f"[MLPipeline] {symbol}: APPROVED — {ml_eval['reason']}")
+                    else:
+                        raw_signal['ml_pipeline'] = ml_eval
+                        if raw_strength >= signal_threshold:
+                            logger.debug(f"[MLPipeline] {symbol}: BLOCKED — {ml_eval['reason']}")
+            except ImportError:
+                pass
+            except Exception as e:
+                logger.debug(f"[MLPipeline] Error for {symbol}: {e}")
+            # ─── END ML PIPELINE ───
             if trade_params is None:
                 if raw_strength >= max(60, signal_threshold):
                     logger.info(
