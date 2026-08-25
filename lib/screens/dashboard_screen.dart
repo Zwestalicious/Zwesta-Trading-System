@@ -16,6 +16,7 @@ import '../providers/fallback_status_provider.dart';
 import '../services/auth_service.dart';
 import '../services/bot_service.dart';
 import '../services/trading_service.dart';
+import '../services/ml_status_service.dart';
 import '../utils/environment_config.dart';
 import '../theme/app_theme.dart';
 import '../theme/app_design.dart';
