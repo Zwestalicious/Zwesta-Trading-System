@@ -1,0 +1,29 @@
+{
+  "trained_at": "2026-08-24T18:17:46.723803",
+  "total_trades": 10423,
+  "accuracy": 72.47002398081534,
+  "win_rate": 42.674853688957114,
+  "feature_importance": {
+    "tp_distance_pips": 0.2602,
+    "rr_ratio": 0.2364,
+    "hour_cos": 0.1502,
+    "hour_sin": 0.084,
+    "sl_distance_pips": 0.0754,
+    "symbol_xau": 0.0694,
+    "day_of_week": 0.0656,
+    "symbol_other": 0.0281,
+    "direction_buy": 0.0087,
+    "symbol_btc": 0.0068,
+    "symbol_gbp": 0.0048,
+    "symbol_oil": 0.0045,
+    "symbol_eth": 0.0028,
+    "symbol_usdjpy": 0.0025,
+    "symbol_aud": 0.0007,
+    "rsi": 0.0,
+    "macd_hist": 0.0,
+    "ma_short_above_long": 0.0,
+    "volatility_pct": 0.0,
+    "atr_pct": 0.0,
+    "signal_strength": 0.0
+  }
+}
