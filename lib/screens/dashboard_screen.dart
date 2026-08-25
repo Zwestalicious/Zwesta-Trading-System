@@ -2392,9 +2392,11 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                   ],
                 ),
               ),
-            _buildPremiumWelcomeCard(),
-            const SizedBox(height: 16),
-            _buildSystemIntroCard(),
+             _buildPremiumWelcomeCard(),
+             const SizedBox(height: 16),
+             _buildMLStatusCard(),
+             const SizedBox(height: 16),
+             _buildSystemIntroCard(),
             const SizedBox(height: 16),
             _buildLiveCandleChart(),
             const SizedBox(height: 16),
@@ -3069,6 +3071,157 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     }
 
     return candles;
+  }
+
+  // ── ML STATUS CARD ──
+  // Shows whether ML models are active and their health status
+  Widget _buildMLStatusCard() {
+    return Consumer<MLStatusService>(
+      builder: (context, mlStatus, _) {
+        final isReady = mlStatus.isReady;
+        final health = mlStatus.health;
+        final activeModels = health['activeModels'] ?? 0;
+        final totalModels = health['totalModels'] ?? 6;
+        
+        return GestureDetector(
+          onTap: () => _showMLDetails(context, mlStatus),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: isReady
+                    ? [const Color(0xFF00C853).withOpacity(0.15), const Color(0xFF00E676).withOpacity(0.05)]
+                    : [const Color(0xFFFF6D00).withOpacity(0.15), const Color(0xFFFF9100).withOpacity(0.05)],
+                begin: Alignment.centerLeft,
+                end: Alignment.centerRight,
+              ),
+              borderRadius: BorderRadius.circular(AppDesign.radiusMd),
+              border: Border.all(
+                color: isReady
+                    ? const Color(0xFF00C853).withOpacity(0.5)
+                    : const Color(0xFFFF6D00).withOpacity(0.5),
+              ),
+            ),
+            child: Row(
+              children: [
+                // Pulsing indicator
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: isReady ? const Color(0xFF00E676) : const Color(0xFFFF9100),
+                    boxShadow: [
+                      BoxShadow(
+                        color: (isReady ? const Color(0xFF00E676) : const Color(0xFFFF9100)).withOpacity(0.6),
+                        blurRadius: isReady ? 8 : 4,
+                        spreadRadius: isReady ? 2 : 1,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 12),
+                // ML Icon
+                Icon(
+                  Icons.psychology_outlined,
+                  color: isReady ? const Color(0xFF00E676) : const Color(0xFFFF9100),
+                  size: 22,
+                ),
+                const SizedBox(width: 10),
+                // Status text
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        isReady ? 'ML Engine Active' : 'ML Engine Standby',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      Text(
+                        '$activeModels/$totalModels models loaded • ${health['statusText'] ?? 'Initializing'}',
+                        style: GoogleFonts.poppins(
+                          color: Colors.white54,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // Arrow
+                Icon(
+                  Icons.chevron_right,
+                  color: Colors.white38,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showMLDetails(BuildContext context, MLStatusService mlStatus) {
+    final health = mlStatus.health;
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: const Color(0xFF111633),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('ML Engine Status', style: GoogleFonts.poppins(color: Colors.white, fontSize: 18, fontWeight: FontWeight.w700)),
+            const SizedBox(height: 16),
+            _mlStatusRow('Regime Filter', health['regime'] ?? false),
+            _mlStatusRow('Signal Scorer', health['signal_scorer'] ?? false),
+            _mlStatusRow('Dynamic SL/TP', health['dynamic_sltp'] ?? false),
+            _mlStatusRow('Smart Exits', health['smart_exit'] ?? false),
+            _mlStatusRow('Portfolio Allocator', health['portfolio'] ?? true),
+            _mlStatusRow('Anomaly Detector', health['anomaly'] ?? false),
+            const SizedBox(height: 16),
+            Text(
+              'ML models analyze market conditions, score signals, optimize exits, and manage risk in real-time.',
+              style: GoogleFonts.poppins(color: Colors.white54, fontSize: 12),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _mlStatusRow(String name, bool active) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        children: [
+          Icon(
+            active ? Icons.check_circle : Icons.radio_button_unchecked,
+            color: active ? const Color(0xFF00E676) : Colors.white38,
+            size: 18,
+          ),
+          const SizedBox(width: 10),
+          Text(name, style: GoogleFonts.poppins(color: Colors.white70, fontSize: 13)),
+          const Spacer(),
+          Text(
+            active ? 'Active' : 'Standby',
+            style: GoogleFonts.poppins(
+              color: active ? const Color(0xFF00E676) : Colors.white38,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   // ── SYSTEM INTRO CARD ──

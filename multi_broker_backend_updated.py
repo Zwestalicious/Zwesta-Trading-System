@@ -12899,6 +12899,48 @@ def health():
     })
 
 
+@app.route('/api/ml/status', methods=['GET'])
+def ml_status():
+    """ML engine status — returns which models are loaded and active."""
+    try:
+        from ml_pipeline import get_ml_pipeline
+        pipeline = get_ml_pipeline()
+        health = pipeline.get_health()
+        
+        active_count = sum(1 for v in health.values() if v is True)
+        
+        return jsonify({
+            'success': True,
+            'is_ready': pipeline.regime_filter.is_ready or pipeline.signal_scorer.is_ready,
+            'active_models': active_count,
+            'total_models': 6,
+            'models': {
+                'regime_filter': health.get('regime', False),
+                'signal_scorer': health.get('signal_scorer', False),
+                'dynamic_sltp': health.get('dynamic_sltp', False),
+                'smart_exit': health.get('smart_exit', False),
+                'portfolio_allocator': True,  # Always active
+                'anomaly_detector': health.get('anomaly', False),
+            },
+            'drift': health.get('drift', {}),
+            'timestamp': datetime.now().isoformat(),
+        })
+    except ImportError:
+        return jsonify({
+            'success': True,
+            'is_ready': False,
+            'active_models': 0,
+            'total_models': 6,
+            'models': {},
+            'reason': 'ML modules not installed',
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e),
+        }), 500
+
+
 @app.route('/api/environment', methods=['GET'])
 def get_environment_status():
     """Get current trading environment mode and MT5 configuration

@@ -18,6 +18,7 @@ import 'services/vps_service.dart';
 import 'services/risk_management_service.dart';
 import 'services/trade_alert_service.dart';
 import 'services/strategy_engine.dart';
+import 'services/ml_status_service.dart';
 import 'providers/currency_provider.dart';
 import 'providers/fallback_status_provider.dart';
 import 'theme/app_theme.dart';
@@ -174,6 +175,9 @@ void main() async {
           ),
           ChangeNotifierProvider(
             create: (_) => StrategyEngine(),
+          ),
+          ChangeNotifierProvider(
+            create: (_) => MLStatusService()..startPolling(),
           ),
         ],
         child: MaterialApp(
