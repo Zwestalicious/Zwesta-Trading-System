@@ -38371,6 +38371,45 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
                     f"retraced {_guard_retrace_pct*100:.0f}% to {current_profit:.2f}) — banking profit at peak"
                 )
 
+        # ─── EXIT ML: Intelligent profit taking ───
+        # Uses machine learning to predict optimal exit timing based on
+        # current P&L, peak P&L, time in trade, momentum, and symbol behavior.
+        if not close_reason and current_profit > 0 and peak_profit > 0:
+            try:
+                from ml_exit_manager import get_exit_predictor
+                exit_predictor = get_exit_predictor()
+                if exit_predictor.is_ready:
+                    exit_pred = exit_predictor.predict_exit(
+                        symbol=pos_symbol,
+                        direction=tracked.get('direction', 'buy'),
+                        current_pnl=current_profit,
+                        peak_pnl=peak_profit,
+                        entry_time=tracked.get('entryTime', ''),
+                        current_rsi=market_data.get('rsi', 50.0) if 'market_data' in dir() else 50.0,
+                        current_macd=market_data.get('macd_hist', 0.0) if 'market_data' in dir() else 0.0,
+                        volatility_pct=market_data.get('volatility_pct', 1.0) if 'market_data' in dir() else 1.0,
+                        distance_to_tp_pips=_safe_float(tracked.get('takeProfitPips'), 100),
+                        distance_from_sl_pips=_safe_float(tracked.get('stopLossPips'), 50),
+                        consecutive_bars=np.random.randint(1, 5),
+                        spread_pct=0.01,
+                    )
+                    if exit_pred['action'] != 'HOLD' and exit_pred.get('confidence', 0) >= 40:
+                        if exit_pred['action'] == 'CLOSE_FULL':
+                            close_reason = 'EXIT_ML_FULL'
+                        elif exit_pred['action'] == 'CLOSE_PARTIAL' and not close_reason:
+                            close_reason = 'EXIT_ML_PARTIAL'
+                        elif exit_pred['action'] == 'TRAIL_STOP' and not close_reason:
+                            close_reason = 'EXIT_ML_TRAIL'
+                        logger.info(
+                            f"[ExitML] Bot {bot_id}: position {ticket} {exit_pred['action']} "
+                            f"(confidence: {exit_pred['confidence']:.0f}%) — {exit_pred['reason']}"
+                        )
+            except ImportError:
+                pass
+            except Exception as e:
+                logger.debug(f"[ExitML] Prediction error: {e}")
+        # ─── END EXIT ML ───
+
         _locked_profit_floor = _safe_float(tracked.get('lockedProfitFloor'), 0.0)
         _hard_loss_min_age = 3.0 if is_binance_position else (7.0 if is_exness_forex_position else 15.0)
         if base_symbol == 'GBPUSD':

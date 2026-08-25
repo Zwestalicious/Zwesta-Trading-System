@@ -271,13 +271,25 @@ def main():
     
     if metrics.get('success'):
         logger.info("\n" + "="*50)
-        logger.info("TRAINING COMPLETE")
+        logger.info("ENTRY MODEL TRAINING COMPLETE")
         logger.info(f"Accuracy: {metrics['accuracy']:.1f}%")
         logger.info(f"Win rate: {metrics['win_rate']:.1f}%")
         logger.info(f"F1 Score: {metrics['f1_score']:.1f}%")
         logger.info("="*50)
     else:
-        logger.error(f"Training failed: {metrics.get('error')}")
+        logger.error(f"Entry model training failed: {metrics.get('error')}")
+    
+    # Also train exit model
+    logger.info("\n" + "="*50)
+    logger.info("TRAINING EXIT MODEL...")
+    from ml_exit_manager import train_exit_model_from_trades
+    exit_metrics = train_exit_model_from_trades(csv_files)
+    if exit_metrics.get('success'):
+        logger.info("EXIT MODEL TRAINING COMPLETE")
+        logger.info(f"Accuracy: {exit_metrics['accuracy']:.1f}%")
+        logger.info(f"Samples: {exit_metrics['samples']}")
+    else:
+        logger.warning(f"Exit model training: {exit_metrics.get('error')}")
 
 
 if __name__ == '__main__':
