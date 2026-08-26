@@ -45,8 +45,8 @@ void main() async {
     }
 
     // The --dart-define=API_URL value (if supplied at build time) overrides
-    // the default VPS backend at 197.184.101.190:9000. This is useful when the
-    // backend is deployed to a remote VPS and the app runs on a different device.
+    // the default local backend at 197.185.168.108:9000. This is useful when the
+    // backend runs on a PC and the app runs on a different device on the same network.
     const String buildApiUrl = String.fromEnvironment('API_URL', defaultValue: '');
     if (buildApiUrl.isNotEmpty) {
       EnvironmentConfig.setApiUrl(buildApiUrl);
