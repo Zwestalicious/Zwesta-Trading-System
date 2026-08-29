@@ -13,9 +13,9 @@ on:
   workflow_dispatch:
     inputs:
       api_url:
-        description: 'Backend API URL (leave blank for local dev default; use public IP when port-forwarded)'
+        description: 'Backend API URL (leave blank for VPS default)'
         required: false
-        default: 'http://197.185.168.108:9000'
+        default: 'http://148.113.5.21:9000'
         type: string
       release_notes:
         description: 'Release notes for this build'
@@ -30,7 +30,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      DEFAULT_API_URL: http://197.185.168.108:9000
+      DEFAULT_API_URL: http://148.113.5.21:9000
       CI: true
       FLUTTER_SUPPRESS_ANALYTICS: true
 

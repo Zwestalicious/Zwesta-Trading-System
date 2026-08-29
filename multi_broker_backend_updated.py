@@ -4609,6 +4609,214 @@ def _get_effective_symbol_params(symbol: str, market_data: Optional[Dict[str, An
     return params
 
 
+def _try_ml_auto_execute_override(
+    symbol: str,
+    market_data: Dict[str, Any],
+    raw_signal: Dict[str, Any],
+    bot_config: Optional[Dict[str, Any]] = None,
+    existing_trade_params: Optional[Dict[str, Any]] = None,
+) -> Optional[Dict[str, Any]]:
+    """If ML confidence is high enough, override strategy rejection with ML-driven trade params."""
+    if existing_trade_params is not None:
+        return existing_trade_params
+    ml_confidence_threshold = _safe_float((bot_config or {}).get('mlAutoExecuteConfidence'), 0.0)
+    if ml_confidence_threshold <= 0:
+        ml_confidence_threshold = _resolve_ml_confidence_threshold(bot_config, market_data=market_data)
+        if ml_confidence_threshold <= 0:
+            return None
+    ml_eval = (raw_signal or {}).get('ml_pipeline') or {}
+    ml_signal_score = ml_eval.get('signal_score') or {}
+    ml_p_win = _safe_float(ml_signal_score.get('p_win'), 0.0)
+    if ml_p_win < ml_confidence_threshold:
+        return None
+    ml_sltp = ml_eval.get('sltp') or {}
+    ml_direction = str((raw_signal or {}).get('signal') or '').upper()
+    if 'BUY' in ml_direction:
+        order_type = 'BUY'
+    elif 'SELL' in ml_direction:
+        order_type = 'SELL'
+    else:
+        return None
+    return {
+        'type': order_type,
+        'signal': {
+            'signal': order_type,
+            'strength': 100.0,
+            'entry_reason': f"ML auto-execute: P(win)={ml_p_win:.1f}% >= {ml_confidence_threshold:.1f}% threshold",
+            'rr': _safe_float(ml_sltp.get('rr_ratio'), 0.0),
+        },
+        'stop_loss': _safe_float(ml_sltp.get('sl_pips'), 0.0),
+        'take_profit': _safe_float(ml_sltp.get('tp1_pips'), 0.0),
+        'take_profit_2': _safe_float(ml_sltp.get('tp2_pips'), 0.0),
+        'source': 'ml_auto_execute',
+        'ml_pipeline': ml_eval,
+    }
+
+
+def _resolve_ml_confidence_threshold(
+    bot_config: Optional[Dict[str, Any]] = None,
+    market_data: Optional[Dict[str, Any]] = None,
+) -> float:
+    """Auto-derive ML confidence threshold from model accuracy when not explicitly configured.
+
+    When market_data is provided, the threshold is nudged based on regime confidence:
+    - CHOP_HIGH_VOL regime: +10% (more selective in choppy markets)
+    - Strong trending regime with high confidence: -5% (more aggressive in clear trends)
+    - Low regime confidence (<0.6): +5% (more selective when uncertain)
+    """
+    configured = _safe_float((bot_config or {}).get('mlAutoExecuteConfidence'), 0.0)
+    if configured > 0:
+        return configured
+    try:
+        from ml_pipeline import get_ml_pipeline
+        pipeline = get_ml_pipeline()
+        base_threshold = 60.0
+        if pipeline and getattr(pipeline, 'anomaly', None) and getattr(pipeline.anomaly, 'win_history', None):
+            history = pipeline.anomaly.win_history
+            if len(history) >= 20:
+                recent = history[-40:] if len(history) >= 40 else history
+                accuracy = sum(1 for r in recent if r.get('actual')) / len(recent)
+                base_threshold = max(55.0, min(75.0, accuracy * 100.0))
+        if market_data and pipeline and getattr(pipeline, 'regime_filter', None) and pipeline.regime_filter.is_ready:
+            try:
+                regime_eval = pipeline.regime_filter.classify_regime(market_data)
+                regime_conf = _safe_float(regime_eval.get('confidence'), 0.0)
+                regime_label = str(regime_eval.get('regime', '')).upper()
+                if 'CHOP' in regime_label:
+                    base_threshold = min(85.0, base_threshold + 10.0)
+                elif regime_conf >= 80.0 and ('TREND' in regime_label):
+                    base_threshold = max(50.0, base_threshold - 5.0)
+                elif regime_conf < 60.0:
+                    base_threshold = min(80.0, base_threshold + 5.0)
+            except Exception:
+                pass
+        return base_threshold
+    except Exception:
+        pass
+    return 60.0
+
+
+def _apply_ml_sizing_to_position(
+    bot_config: Optional[Dict[str, Any]],
+    symbol: str,
+    market_data: Optional[Dict[str, Any]],
+    position_size: float,
+    existing_positions: Optional[List[Dict[str, Any]]] = None,
+) -> float:
+    """Apply ML position-size multiplier to the base position_size.
+
+    Returns the adjusted position_size. If ML is unavailable or the symbol
+    is not approved by ML, the original position_size is returned unchanged.
+    """
+    if not bot_config or position_size <= 0:
+        return position_size
+    try:
+        from ml_pipeline import get_ml_pipeline
+        pipeline = get_ml_pipeline()
+        if not pipeline:
+            return position_size
+        existing_pos = [p.get('symbol', '') for p in (existing_positions or []) if isinstance(p, dict)]
+        raw_signal_for_ml = {'signal': 'BUY'}
+        ml_eval = pipeline.evaluate_entry(symbol, market_data or {}, raw_signal_for_ml, existing_pos)
+        if not ml_eval.get('should_trade', True):
+            return 0.0
+        ml_pos = ml_eval.get('position_size') or {}
+        ml_mult = _safe_float(ml_pos.get('size_multiplier'), 0.0)
+        if ml_mult > 0:
+            return max(0.0, position_size * ml_mult)
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return position_size
+
+
+def _get_ml_drawdown_throttle(bot_config: Optional[Dict[str, Any]] = None) -> float:
+    """Return a size throttle multiplier based on recent ML model performance.
+
+    If the ML pipeline's recent win rate is underperforming, reduce exposure
+    to protect account balance growth. Returns 1.0 when ML is healthy or unavailable.
+    """
+    try:
+        from ml_pipeline import get_ml_pipeline
+        pipeline = get_ml_pipeline()
+        if not pipeline or not getattr(pipeline, 'anomaly', None):
+            return 1.0
+        history = getattr(pipeline.anomaly, 'win_history', None) or []
+        if len(history) < 10:
+            return 1.0
+        recent = history[-30:]
+        wins = sum(1 for r in recent if r.get('actual'))
+        win_rate = wins / len(recent)
+        if win_rate < 0.35:
+            return 0.5
+        if win_rate < 0.45:
+            return 0.75
+        return 1.0
+    except ImportError:
+        pass
+    except Exception:
+        pass
+    return 1.0
+
+
+def _ml_exit_evaluate(
+    bot_id: str,
+    symbol: str,
+    tracked: Dict[str, Any],
+    current_position: Dict[str, Any],
+    market_data: Dict[str, Any],
+    bot_config: Optional[Dict[str, Any]] = None,
+) -> Optional[str]:
+    """Use ML exit model to evaluate whether to close or adjust an open position.
+    
+    Returns a close_reason string if ML recommends exiting, otherwise None.
+    Only acts on profitable positions unless ML is very confident about a loss exit.
+    """
+    current_profit = _safe_float(tracked.get('profit'), 0.0)
+    peak_profit = _safe_float(tracked.get('peakProfit'), 0.0)
+    if current_profit <= 0 and peak_profit <= 0:
+        return None
+    ml_confidence_threshold = _resolve_ml_confidence_threshold(bot_config)
+    try:
+        from ml_exit_manager import get_exit_predictor
+        exit_predictor = get_exit_predictor()
+        if not exit_predictor.is_ready:
+            return None
+        entry_time = str(tracked.get('entryTime') or '')
+        time_in_trade_min = _position_age_minutes(entry_time)
+        exit_pred = exit_predictor.predict_exit(
+            symbol=symbol,
+            direction=str(tracked.get('type', 'buy')).upper(),
+            current_pnl=current_profit,
+            peak_pnl=peak_profit,
+            entry_time=entry_time,
+            current_rsi=market_data.get('rsi', 50.0),
+            current_macd=market_data.get('macd_hist', 0.0),
+            volatility_pct=market_data.get('volatility_pct', 1.0),
+            distance_to_tp_pips=_safe_float(tracked.get('takeProfitPips'), 100),
+            distance_from_sl_pips=_safe_float(tracked.get('stopLossPips'), 50),
+            consecutive_bars=max(1, int(time_in_trade_min / 2)),
+            spread_pct=0.01,
+        )
+        confidence = _safe_float(exit_pred.get('confidence'), 0.0)
+        if confidence < ml_confidence_threshold:
+            return None
+        action = str(exit_pred.get('action', 'HOLD')).upper()
+        if action == 'CLOSE_FULL':
+            return 'EXIT_ML_FULL'
+        elif action == 'CLOSE_PARTIAL':
+            return 'EXIT_ML_PARTIAL'
+        elif action == 'TRAIL_STOP':
+            return 'EXIT_ML_TRAIL'
+        return None
+    except ImportError:
+        return None
+    except Exception as e:
+        logger.debug(f"[ExitML] Evaluation error for {symbol}: {e}")
+        return None
+
+
 def _build_adaptive_raw_trade_params(
     symbol: str,
     market_data: Dict[str, Any],
@@ -24113,6 +24321,29 @@ def scan_all_opportunities(strategy_func, account_id, risk_per_trade, signal_thr
                 logger.debug(f"[MLPipeline] Error for {symbol}: {e}")
             # ─── END ML PIPELINE ───
             if trade_params is None:
+                trade_params = _try_ml_auto_execute_override(
+                    symbol,
+                    market_data,
+                    raw_signal,
+                    bot_config=bot_config,
+                    existing_trade_params=trade_params,
+                )
+                if trade_params is not None:
+                    strategy_cache[_strategy_cache_key(strategy_func_for_symbol, symbol)] = trade_params
+                    opportunities.append({
+                        'symbol': symbol,
+                        'strength': trade_params.get('signal', {}).get('strength', 100.0),
+                        'setupScore': _safe_float(trade_params.get('setupScore'), 0.0),
+                        'rr': _safe_float((trade_params.get('signal') or {}).get('rr'), 0.0),
+                        'rankingScore': _safe_float(trade_params.get('rankingScore'), 0.0),
+                        'signal': trade_params['signal']['signal'],
+                        'trend': raw_signal.get('trend', 'UNKNOWN'),
+                        'rsi': raw_signal.get('rsi', 50),
+                        'trade_params': trade_params,
+                        'source': 'ml_auto_execute',
+                    })
+                    continue
+            if trade_params is None:
                 if raw_strength >= max(60, signal_threshold):
                     logger.info(
                         f"[SCANNER] {symbol}: raw signal {raw_strength:.0f}/100 "
@@ -38350,6 +38581,19 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
         if not is_exness_forex_position and not is_exness_index_runner_position and not is_binance_position:
             _catastrophic_loss_limit = _hard_loss_limit + 0.5
 
+        # ── ML EXIT: Intelligent profit taking / loss cutting ───────────────────
+        # Uses ML to predict optimal exit timing. Can override rule-based profit-taking
+        # when confidence exceeds the auto-derived or configured threshold.
+        if not close_reason:
+            _ml_exit_reason = _ml_exit_evaluate(
+                bot_id, symbol, tracked, current_position, market_data, bot_config=bot_config
+            )
+            if _ml_exit_reason:
+                close_reason = _ml_exit_reason
+                logger.info(
+                    f"[ExitML] Bot {bot_id}: position {ticket} ML exit decision: {close_reason}"
+                )
+
         # ── FLAT TAKE-PROFIT CEILING: bank meaningful profit before it round-trips ──
         # Per user risk feedback (2026-07-21): "Take Profit: $1.20" — a simple dollar
         # ceiling on top of the trailing peak-lock logic below, so profits are
@@ -38433,45 +38677,7 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
                     f"(peak {peak_profit:.2f} {_currency_label} of {_profit_target:.2f} TP target, "
                     f"retraced {_guard_retrace_pct*100:.0f}% to {current_profit:.2f}) — banking profit at peak"
                 )
-
-        # ─── EXIT ML: Intelligent profit taking ───
-        # Uses machine learning to predict optimal exit timing based on
-        # current P&L, peak P&L, time in trade, momentum, and symbol behavior.
-        if not close_reason and current_profit > 0 and peak_profit > 0:
-            try:
-                from ml_exit_manager import get_exit_predictor
-                exit_predictor = get_exit_predictor()
-                if exit_predictor.is_ready:
-                    exit_pred = exit_predictor.predict_exit(
-                        symbol=pos_symbol,
-                        direction=tracked.get('direction', 'buy'),
-                        current_pnl=current_profit,
-                        peak_pnl=peak_profit,
-                        entry_time=tracked.get('entryTime', ''),
-                        current_rsi=market_data.get('rsi', 50.0) if 'market_data' in dir() else 50.0,
-                        current_macd=market_data.get('macd_hist', 0.0) if 'market_data' in dir() else 0.0,
-                        volatility_pct=market_data.get('volatility_pct', 1.0) if 'market_data' in dir() else 1.0,
-                        distance_to_tp_pips=_safe_float(tracked.get('takeProfitPips'), 100),
-                        distance_from_sl_pips=_safe_float(tracked.get('stopLossPips'), 50),
-                        consecutive_bars=np.random.randint(1, 5),
-                        spread_pct=0.01,
-                    )
-                    if exit_pred['action'] != 'HOLD' and exit_pred.get('confidence', 0) >= 40:
-                        if exit_pred['action'] == 'CLOSE_FULL':
-                            close_reason = 'EXIT_ML_FULL'
-                        elif exit_pred['action'] == 'CLOSE_PARTIAL' and not close_reason:
-                            close_reason = 'EXIT_ML_PARTIAL'
-                        elif exit_pred['action'] == 'TRAIL_STOP' and not close_reason:
-                            close_reason = 'EXIT_ML_TRAIL'
-                        logger.info(
-                            f"[ExitML] Bot {bot_id}: position {ticket} {exit_pred['action']} "
-                            f"(confidence: {exit_pred['confidence']:.0f}%) — {exit_pred['reason']}"
-                        )
-            except ImportError:
-                pass
-            except Exception as e:
-                logger.debug(f"[ExitML] Prediction error: {e}")
-        # ─── END EXIT ML ───
+                
 
         _locked_profit_floor = _safe_float(tracked.get('lockedProfitFloor'), 0.0)
         _hard_loss_min_age = 3.0 if is_binance_position else (7.0 if is_exness_forex_position else 15.0)
@@ -43543,6 +43749,13 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
                         if trade_params is None:
                             raw_signal = evaluate_real_trade_signal(symbol, market_data)
                             raw_strength = _safe_float(raw_signal.get('strength'), 0.0)
+                            trade_params = _try_ml_auto_execute_override(
+                                symbol,
+                                market_data,
+                                raw_signal,
+                                bot_config=bot_config,
+                                existing_trade_params=trade_params,
+                            )
                             if normalized_broker == 'Exness':
                                 exness_raw_fallback_buffer = max(
                                     5.0,
@@ -44016,6 +44229,34 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
                                     )
 
                         configured_fixed_trade_volume = max(0.0, _safe_float(bot_config.get('fixedTradeVolume'), 0.0))
+
+                        _ml_position_size = _apply_ml_sizing_to_position(
+                            bot_config,
+                            symbol,
+                            market_data,
+                            position_size,
+                            existing_positions=list(bot_config.get('open_positions', {}).values()),
+                        )
+                        if _ml_position_size == 0.0:
+                            logger.info(
+                                f"[MLSize] Bot {bot_id}: ML blocked entry on {symbol} — skipping"
+                            )
+                            continue
+                        if _ml_position_size != position_size:
+                            logger.info(
+                                f"[MLSize] Bot {bot_id}: ML sizing applied to {symbol}: "
+                                f"{position_size:.4f} -> {_ml_position_size:.4f}"
+                            )
+                        position_size = _ml_position_size
+
+                        _ml_throttle = _get_ml_drawdown_throttle(bot_config)
+                        if _ml_throttle < 1.0 and position_size > 0:
+                            position_size = max(0.0, position_size * _ml_throttle)
+                            logger.info(
+                                f"[MLSize] Bot {bot_id}: ML drawdown throttle active on {symbol}: "
+                                f"{_ml_position_size:.4f} -> {position_size:.4f} (throttle={_ml_throttle:.2f})"
+                            )
+
                         adjusted_volume = fixed_trade_volume if fixed_trade_volume is not None else trade_params['volume'] * position_size
                         positive_symbol_multiplier, positive_symbol_multiplier_reason = _resolve_symbol_positive_trade_multiplier(
                             bot_config,
@@ -49584,7 +49825,20 @@ def _run_binance_spot_tracker(bot_id: str, bot_config: Dict[str, Any], active_co
                             trigger_reason = 'HARD_LOSS_LIMIT'
                             logger.warning(
                                 f"[LOSS] Bot {bot_id}: Binance spot {tracked_symbol} hard loss limit "
-                                f"({_cur_profit:.2f} {_spot_currency} < -{_spot_hard_loss:.2f}) — force closing"
+                            f"({_cur_profit:.2f} {_spot_currency} < -{_spot_hard_loss:.2f}) — force closing"
+                        )
+
+                    # ── ML EXIT: Intelligent profit taking / loss cutting ─────────────────
+                    # ML can override rule-based profit-taking when confidence exceeds threshold.
+                    # Safety stops (TP/SL, hard loss) already fired above and take precedence.
+                    if not trigger_reason:
+                        _ml_exit_reason = _ml_exit_evaluate(
+                            bot_id, tracked_symbol, tracked, tracked, commodity_market_data, bot_config=bot_config
+                        )
+                        if _ml_exit_reason:
+                            trigger_reason = _ml_exit_reason
+                            logger.info(
+                                f"[ExitML] Bot {bot_id}: {tracked_symbol} ML exit decision: {trigger_reason}"
                             )
 
                     _spot_market_data = commodity_market_data.get(tracked_symbol, {}) if isinstance(commodity_market_data, dict) else {}
