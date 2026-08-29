@@ -60351,7 +60351,32 @@ if __name__ == '__main__':
     ml_retrain_thread = threading.Thread(target=_ml_auto_retrain_worker, name='ml-auto-retrain', daemon=True)
     ml_retrain_thread.start()
     logger.info(f"[MLAutoRetrain] Auto-retrain thread started (interval: {_ml_retrain_interval_hours}h)")
-    
+
+    try:
+        from engine.tick_engine_optimized import init_engine
+        init_engine()
+        logger.info("[ENGINE] Tick engine initialized")
+    except Exception as _init_exc:
+        logger.warning(f"[ENGINE] Tick engine init failed: {_init_exc}")
+
+    def _ml_exit_batch_worker():
+        while True:
+            try:
+                time.sleep(5)
+                from engine.tick_engine_optimized import process_exits_batch
+                for _bot_id, _bot_config in list(active_bots.items()):
+                    _open_positions = _bot_config.get("open_positions", {}) if isinstance(_bot_config.get("open_positions"), dict) else {}
+                    _market_data_map = dict(commodity_market_data)
+                    _actions = process_exits_batch(_open_positions, _market_data_map, _bot_config)
+                    for _action in _actions:
+                        logger.info(f"[ExitBatch] Bot {_bot_id}: exit action {_action}")
+            except Exception as _exit_exc:
+                logger.debug(f"[ExitBatch] worker error: {_exit_exc}")
+
+    exit_batch_thread = threading.Thread(target=_ml_exit_batch_worker, name='ml-exit-batch', daemon=True)
+    exit_batch_thread.start()
+    logger.info("[ENGINE] ML exit batch thread started")
+
     # The HTTP server now runs in its own background thread (_serve_http), launched
     # earlier in startup, so port 9000 opens within seconds. Here we just keep the
     # main thread alive so daemon threads (bots, price feeds, server) keep running.
