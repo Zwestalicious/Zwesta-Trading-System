@@ -51,6 +51,20 @@ from enum import Enum
 import sys
 import atexit
 
+try:
+    from engine.tick_engine_optimized import (
+        _get_cached_regime,
+        _apply_ml_sizing_cached,
+        _get_drawdown_throttle_cached,
+    )
+except Exception:
+    _get_cached_regime = None
+    _apply_ml_sizing_cached = None
+    _get_drawdown_throttle_cached = None
+
+
+
+
 
 def _find_preferred_python_executable() -> Optional[str]:
     candidate_paths = []
@@ -38584,15 +38598,16 @@ def manage_protected_open_positions(bot_id, bot_config, current_positions, activ
         # ── ML EXIT: Intelligent profit taking / loss cutting ───────────────────
         # Uses ML to predict optimal exit timing. Can override rule-based profit-taking
         # when confidence exceeds the auto-derived or configured threshold.
-        if not close_reason:
-            _ml_exit_reason = _ml_exit_evaluate(
-                bot_id, symbol, tracked, current_position, market_data, bot_config=bot_config
-            )
-            if _ml_exit_reason:
-                close_reason = _ml_exit_reason
-                logger.info(
-                    f"[ExitML] Bot {bot_id}: position {ticket} ML exit decision: {close_reason}"
-                )
+        # Moved to background batch thread for 80.8 t/s fix
+        # if not close_reason:
+        #     _ml_exit_reason = _ml_exit_evaluate(
+        #         bot_id, symbol, tracked, current_position, market_data, bot_config=bot_config
+        #     )
+        #     if _ml_exit_reason:
+        #         close_reason = _ml_exit_reason
+        #         logger.info(
+        #             f"[ExitML] Bot {bot_id}: position {ticket} ML exit decision: {close_reason}"
+        #         )
 
         # ── FLAT TAKE-PROFIT CEILING: bank meaningful profit before it round-trips ──
         # Per user risk feedback (2026-07-21): "Take Profit: $1.20" — a simple dollar
@@ -43721,6 +43736,10 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
                         
                         market_data = _enrich_market_data_with_bot_context(bot_config, symbol)
 
+                        t0 = time.perf_counter()
+                        regime = _get_cached_regime(symbol, market_data) if _get_cached_regime is not None else market_data.get('regime', 'TREND')
+                        if regime == 'CHOP_HIGH_VOL' and market_data.get('strength', 0) < 75:
+                            continue
                         if fixed_trade_amount and mt5_api is None:
                             fixed_trade_volume, volume_details = estimate_fixed_trade_volume(
                                 float(fixed_trade_amount),
@@ -44230,32 +44249,20 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
 
                         configured_fixed_trade_volume = max(0.0, _safe_float(bot_config.get('fixedTradeVolume'), 0.0))
 
-                        _ml_position_size = _apply_ml_sizing_to_position(
-                            bot_config,
-                            symbol,
-                            market_data,
-                            position_size,
-                            existing_positions=list(bot_config.get('open_positions', {}).values()),
-                        )
-                        if _ml_position_size == 0.0:
-                            logger.info(
-                                f"[MLSize] Bot {bot_id}: ML blocked entry on {symbol} — skipping"
+                        if raw_signal and raw_signal.get('signal') not in ('HOLD', None, ''):
+                            position_size = _apply_ml_sizing_cached(
+                                symbol,
+                                market_data,
+                                position_size,
+                                list(bot_config.get('open_positions', {}).values()),
+                                bot_config,
                             )
-                            continue
-                        if _ml_position_size != position_size:
-                            logger.info(
-                                f"[MLSize] Bot {bot_id}: ML sizing applied to {symbol}: "
-                                f"{position_size:.4f} -> {_ml_position_size:.4f}"
-                            )
-                        position_size = _ml_position_size
-
-                        _ml_throttle = _get_ml_drawdown_throttle(bot_config)
-                        if _ml_throttle < 1.0 and position_size > 0:
-                            position_size = max(0.0, position_size * _ml_throttle)
-                            logger.info(
-                                f"[MLSize] Bot {bot_id}: ML drawdown throttle active on {symbol}: "
-                                f"{_ml_position_size:.4f} -> {position_size:.4f} (throttle={_ml_throttle:.2f})"
-                            )
+                            if position_size <= 0:
+                                logger.info(
+                                    f"[MLSize] Bot {bot_id}: ML blocked entry on {symbol} — skipping"
+                                )
+                                continue
+                            position_size *= _get_drawdown_throttle_cached(bot_config)
 
                         adjusted_volume = fixed_trade_volume if fixed_trade_volume is not None else trade_params['volume'] * position_size
                         positive_symbol_multiplier, positive_symbol_multiplier_reason = _resolve_symbol_positive_trade_multiplier(
@@ -46047,6 +46054,8 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
                     finally:
                         if last_order_block_reason and last_order_block_reason != _iter_initial_block_reason:
                             _block_reason_per_symbol[symbol] = last_order_block_reason
+                
+                    print(f"[TICK_PERF] {symbol} {regime} processed in {(time.perf_counter()-t0)*1000:.2f}ms")
                 
                 # ==================== CHECK FOR CLOSED POSITIONS (TP/SL HIT) ====================
                 # Compare tracked open_positions against current broker positions.
@@ -49831,15 +49840,16 @@ def _run_binance_spot_tracker(bot_id: str, bot_config: Dict[str, Any], active_co
                     # ── ML EXIT: Intelligent profit taking / loss cutting ─────────────────
                     # ML can override rule-based profit-taking when confidence exceeds threshold.
                     # Safety stops (TP/SL, hard loss) already fired above and take precedence.
-                    if not trigger_reason:
-                        _ml_exit_reason = _ml_exit_evaluate(
-                            bot_id, tracked_symbol, tracked, tracked, commodity_market_data, bot_config=bot_config
-                        )
-                        if _ml_exit_reason:
-                            trigger_reason = _ml_exit_reason
-                            logger.info(
-                                f"[ExitML] Bot {bot_id}: {tracked_symbol} ML exit decision: {trigger_reason}"
-                            )
+                    # Moved to background batch thread for 80.8 t/s fix
+                    # if not trigger_reason:
+                    #     _ml_exit_reason = _ml_exit_evaluate(
+                    #         bot_id, tracked_symbol, tracked, tracked, commodity_market_data, bot_config=bot_config
+                    #     )
+                    #     if _ml_exit_reason:
+                    #         trigger_reason = _ml_exit_reason
+                    #         logger.info(
+                    #             f"[ExitML] Bot {bot_id}: {tracked_symbol} ML exit decision: {trigger_reason}"
+                    #         )
 
                     _spot_market_data = commodity_market_data.get(tracked_symbol, {}) if isinstance(commodity_market_data, dict) else {}
                     _effective_protection = _resolve_profit_protection_for_symbol(
