@@ -31,9 +31,10 @@ def process_tick_optimized(
         return None
 
     regime = _get_cached_regime(symbol, market_data)
-    if regime == "CHOP_HIGH_VOL":
-        if market_data.get("strength", 0) < 75:
-            return None
+    is_binance = "Binance" in broker_name
+    chop_limit = 60 if is_binance else 75
+    if regime == "CHOP_HIGH_VOL" and market_data.get("strength", 0) < chop_limit:
+        return None
 
     for pos in existing_positions:
         if pos.get("symbol") == symbol:
@@ -153,9 +154,10 @@ def _get_drawdown_throttle_cached(bot_config):
 
 
 def _get_adaptive_threshold(bot_config, regime):
-    base = 65
+    profile = str(bot_config.get("trading_profile", "")).lower()
+    base = 58 if "quick" in profile or "scalp" in profile else 65
     if regime == "CHOP_HIGH_VOL":
-        base += 10
+        base += 5 if "binance" in str(bot_config.get("broker", "")).lower() else 10
     elif "TREND" in regime:
         base -= 5
     return base
@@ -171,7 +173,8 @@ def _try_ml_override(symbol, market_data, raw_signal, bot_config, threshold):
     try:
         eval_result = _ml_pipeline.evaluate_entry(symbol, market_data, raw_signal, [])
         conf = float(eval_result.get("confidence", 0))
-        return conf > 0.78
+        limit = 0.70 if "binance" in str(bot_config.get("broker", "")).lower() else 0.78
+        return conf > limit
     except Exception:
         return False
 
