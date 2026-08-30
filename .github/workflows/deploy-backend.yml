@@ -53,31 +53,42 @@ jobs:
             Write-Host "No python processes running"
           }
 
-      - name: Copy backend file
-        if: ${{ github.event.inputs.restart_only != 'true' }}
-        shell: pwsh
-        run: |
-          Write-Host "=== Copying patched backend to C:\backend\ ==="
-          Copy-Item "${{ github.workspace }}\multi_broker_backend_updated.py" `
-                    "C:\backend\multi_broker_backend_updated.py" -Force
-          # Also copy postgres_schema.py (used for schema init + migrations at startup)
-          if (Test-Path "${{ github.workspace }}\postgres_schema.py") {
-            Copy-Item "${{ github.workspace }}\postgres_schema.py" `
-                      "C:\backend\postgres_schema.py" -Force
-            Write-Host "Copied postgres_schema.py"
-          }
-          Write-Host "File copied: $(Get-Date)"
-          $item = Get-Item "C:\backend\multi_broker_backend_updated.py"
-          Write-Host "Size: $($item.Length) bytes  Modified: $($item.LastWriteTime)"
+       - name: Copy backend file
+         if: ${{ github.event.inputs.restart_only != 'true' }}
+         shell: pwsh
+         run: |
+           Write-Host "=== Copying patched backend to C:\backend\ and C:\zwesta-app\ ==="
+           Copy-Item "${{ github.workspace }}\multi_broker_backend_updated.py" `
+                     "C:\backend\multi_broker_backend_updated.py" -Force
+           Copy-Item "${{ github.workspace }}\multi_broker_backend_updated.py" `
+                     "C:\zwesta-app\multi_broker_backend_updated.py" -Force
+           if (Test-Path "${{ github.workspace }}\postgres_schema.py") {
+             Copy-Item "${{ github.workspace }}\postgres_schema.py" `
+                       "C:\backend\postgres_schema.py" -Force
+             Copy-Item "${{ github.workspace }}\postgres_schema.py" `
+                       "C:\zwesta-app\postgres_schema.py" -Force
+             Write-Host "Copied postgres_schema.py"
+           }
+           if (Test-Path "${{ github.workspace }}\engine") {
+             Copy-Item "${{ github.workspace }}\engine\*" "C:\backend\engine\" -Recurse -Force
+             Copy-Item "${{ github.workspace }}\engine\*" "C:\zwesta-app\engine\" -Recurse -Force
+             Write-Host "Copied engine/ to both backend locations"
+           }
+           Write-Host "File copied: $(Get-Date)"
+           $item = Get-Item "C:\backend\multi_broker_backend_updated.py"
+           Write-Host "Size: $($item.Length) bytes  Modified: $($item.LastWriteTime)"
 
-      - name: Start backend via watchdog
-        shell: pwsh
-        run: |
-          Write-Host "=== Starting watchdog ==="
-          Start-Process -FilePath "C:\backend\start_watchdog.bat" `
-                        -WorkingDirectory "C:\backend" `
-                        -WindowStyle Hidden
-          Start-Sleep -Seconds 8
+       - name: Start backend via watchdog
+         shell: pwsh
+         run: |
+           Write-Host "=== Starting backend via scheduled task ==="
+           Start-ScheduledTask -TaskName "ZwestaBackend" -ErrorAction SilentlyContinue
+           Start-Sleep -Seconds 8
+           if (-not (Get-ScheduledTask -TaskName "ZwestaBackend" -ErrorAction SilentlyContinue)) {
+             Write-Host "=== Fallback: starting watchdog from C:\backend\ ==="
+             Start-Process -FilePath "C:\backend\start_watchdog.bat" -WorkingDirectory "C:\backend" -WindowStyle Hidden
+             Start-Sleep -Seconds 8
+           }
 
       - name: Health check
         shell: pwsh
