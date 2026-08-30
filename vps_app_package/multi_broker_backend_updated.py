@@ -43916,7 +43916,11 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
 
                         configured_fixed_trade_volume = max(0.0, _safe_float(bot_config.get('fixedTradeVolume'), 0.0))
 
-                        if raw_signal and raw_signal.get('signal') not in ('HOLD', None, ''):
+                        strategy_signal = (trade_params or {}).get('signal') if isinstance(trade_params, dict) else None
+                        strategy_signal_value = ''
+                        if isinstance(strategy_signal, dict):
+                            strategy_signal_value = str((strategy_signal.get('signal') or strategy_signal.get('direction') or '')).upper()
+                        if strategy_signal_value not in ('HOLD', '', 'NONE', None):
                             position_size = _apply_ml_sizing_cached(
                                 symbol,
                                 market_data,
