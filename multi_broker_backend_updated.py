@@ -43738,7 +43738,9 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
 
                         t0 = time.perf_counter()
                         regime = _get_cached_regime(symbol, market_data) if _get_cached_regime is not None else market_data.get('regime', 'TREND')
-                        if regime == 'CHOP_HIGH_VOL' and market_data.get('strength', 0) < 75:
+                        is_binance = canonicalize_broker_name(broker_type) == 'Binance'
+                        chop_limit = 60 if is_binance else 75
+                        if regime == 'CHOP_HIGH_VOL' and market_data.get('strength', 0) < chop_limit:
                             continue
                         if fixed_trade_amount and mt5_api is None:
                             fixed_trade_volume, volume_details = estimate_fixed_trade_volume(
