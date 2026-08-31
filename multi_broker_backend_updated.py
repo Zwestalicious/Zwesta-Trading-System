@@ -42660,8 +42660,17 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
             
             Returns False only for the worst session (20:00-23:00 UTC) to avoid
             choppy low-liquidity trading while preserving opportunity.
+            
+            NOTE: Binance crypto is 24/7, so session filter is skipped for Binance.
             """
             try:
+                # Skip session filter for Binance - crypto trades 24/7
+                broker_name = canonicalize_broker_name(
+                    bot_config.get('brokerName') or bot_config.get('broker_type') or bot_config.get('broker') or ''
+                )
+                if broker_name == 'Binance':
+                    return True, "Binance crypto - 24/7 trading, session filter disabled"
+                
                 now_utc = datetime.utcnow()
                 hour_utc = now_utc.hour
                 # Block entries during 20:00-23:59 UTC (US close / Asian pre-open chop)
