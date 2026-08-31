@@ -152,8 +152,8 @@ def _get_drawdown_throttle_cached(bot_config):
 
 
 def _adaptive_signal_threshold_floor(bot_config=None):
-    """UNIFIED FOR BINANCE + EXNESS - Demo will work same as Live"""
-    return 25
+    """UNIFIED FOR BINANCE + EXNESS - Strategy effectively bypassed, ML decides."""
+    return 1
 
 
 def _get_ml_threshold():

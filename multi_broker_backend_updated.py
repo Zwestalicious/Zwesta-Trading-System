@@ -4687,7 +4687,7 @@ def _resolve_ml_confidence_threshold(
     try:
         from ml_pipeline import get_ml_pipeline
         pipeline = get_ml_pipeline()
-        base_threshold = 55.0
+        base_threshold = 50.0
         if pipeline and getattr(pipeline, 'anomaly', None) and getattr(pipeline.anomaly, 'win_history', None):
             history = pipeline.anomaly.win_history
             if len(history) >= 20:
@@ -36982,45 +36982,8 @@ def _minimum_saved_bot_trade_cadence(
     return {'tradingMode': 'signal-driven', 'tradingInterval': 120, 'pollInterval': 12}
 
 
-def _adaptive_signal_threshold_floor(bot_config: Dict[str, Any]) -> int:
-    broker_name = canonicalize_broker_name(
-        bot_config.get('brokerName') or bot_config.get('broker_type') or bot_config.get('broker') or ''
-    )
-    mode_value = str(bot_config.get('mode') or bot_config.get('botMode') or 'demo').strip().lower()
-    is_live = mode_value == 'live' or bool(bot_config.get('is_live'))
-    normalized_profile = _normalize_management_profile(bot_config.get('managementProfile'))
-    if broker_name == 'FXCM':
-        return 10
-    if broker_name == 'Binance':
-        # Lower the Binance floor so the scanner can still surface moderate setups
-        # instead of starving the bot on a narrow set of high-quality only signals.
-        return 20
-
-    if broker_name == 'Exness':
-        # UNIFIED WITH BINANCE: identical behavior for demo and live
-        return 25
-    if broker_name == 'Binance':
-        # Lower the Binance floor so the scanner can still surface moderate setups
-        # instead of starving the bot on a narrow set of high-quality only signals.
-        return 25
-
-    strategy_name = str(bot_config.get('strategy') or '').strip().lower()
-    configured_symbols = bot_config.get('symbols') or []
-    base_symbols = {
-        _normalize_symbol_base(symbol)
-        for symbol in configured_symbols
-        if _normalize_symbol_base(symbol)
-    }
-
-    if base_symbols and base_symbols.issubset(SMALL_LIVE_ACCOUNT_OPTIONAL_CRYPTO_BASE_SYMBOLS):
-        return 1
-    if strategy_name in {'scalping', 'momentum trading'}:
-        return 1   # AGGRESSIVE: Lower floor for faster trading
-    if strategy_name in {'trend following', 'swing trend dca'}:
-        return 1   # AGGRESSIVE: Lower floor for faster trading
-    if _normalize_management_profile(bot_config.get('managementProfile')) == 'small_account':
-        return 1   # AGGRESSIVE: Lower floor for faster trading
-    return 1       # AGGRESSIVE: Global floor 1 for all strategies
+ def _adaptive_signal_threshold_floor(bot_config: Dict[str, Any]) -> int:
+     return 1
 
 
 def _effective_signal_threshold_for_display(bot_config: Dict[str, Any]) -> int:
