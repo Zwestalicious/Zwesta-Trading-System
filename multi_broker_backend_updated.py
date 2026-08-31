@@ -36982,8 +36982,8 @@ def _minimum_saved_bot_trade_cadence(
     return {'tradingMode': 'signal-driven', 'tradingInterval': 120, 'pollInterval': 12}
 
 
- def _adaptive_signal_threshold_floor(bot_config: Dict[str, Any]) -> int:
-     return 1
+def _adaptive_signal_threshold_floor(bot_config: Dict[str, Any]) -> int:
+    return 1
 
 
 def _effective_signal_threshold_for_display(bot_config: Dict[str, Any]) -> int:
