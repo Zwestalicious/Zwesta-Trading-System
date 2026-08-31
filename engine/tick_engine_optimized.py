@@ -60,7 +60,7 @@ def process_tick_optimized(
         return None
 
     position_size = _apply_ml_sizing_cached(
-        symbol, market_data, position_size, existing_positions, bot_config
+        symbol, market_data, position_size, existing_positions, bot_config, raw_signal.get("signal")
     )
     if position_size <= 0:
         return None
@@ -113,7 +113,7 @@ def _get_cached_regime(symbol: str, market_data: Dict) -> str:
     return regime
 
 
-def _apply_ml_sizing_cached(symbol, market_data, position_size, existing_positions, bot_config):
+def _apply_ml_sizing_cached(symbol, market_data, position_size, existing_positions, bot_config, signal=None):
     if not _ml_pipeline:
         return position_size
     cache_key = f"{symbol}:{market_data.get('close',0)}"
@@ -125,7 +125,8 @@ def _apply_ml_sizing_cached(symbol, market_data, position_size, existing_positio
 
     try:
         existing_syms = [p.get("symbol", "") for p in (existing_positions or [])]
-        ml_eval = _ml_pipeline.evaluate_entry(symbol, market_data, {"signal": "BUY"}, existing_syms)
+        ml_signal = signal if signal else "BUY"
+        ml_eval = _ml_pipeline.evaluate_entry(symbol, market_data, {"signal": ml_signal}, existing_syms)
         if not ml_eval.get("should_trade", True):
             return 0.0
         mult = float(ml_eval.get("position_size", {}).get("size_multiplier", 1.0) or 1.0)

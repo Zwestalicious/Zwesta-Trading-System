@@ -132,7 +132,7 @@ void main() async {
       return MultiProvider(
         providers: [
           ChangeNotifierProvider(
-            create: (_) => CurrencyProvider()..loadCurrency(),
+            create: (_) => CurrencyProvider(),
           ),
           ChangeNotifierProvider(
             create: (_) => AuthService(),
@@ -157,7 +157,7 @@ void main() async {
             create: (_) => FinancialService(),
           ),
           ChangeNotifierProvider(
-            create: (_) => IGAutoConnectService()..autoConnect(),
+            create: (_) => IGAutoConnectService(),
           ),
           ChangeNotifierProvider(
             create: (_) => CommissionService(),
@@ -235,6 +235,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
   void initState() {
     super.initState();
     _checkOnboardingStatus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      try {
+        final currencyProvider = Provider.of<CurrencyProvider>(context, listen: false);
+        currencyProvider.loadCurrency();
+      } catch (_) {}
+      try {
+        final igService = Provider.of<IGAutoConnectService>(context, listen: false);
+        igService.autoConnect();
+      } catch (_) {}
+    });
   }
 
   Future<void> _checkOnboardingStatus() async {

@@ -44262,6 +44262,7 @@ def continuous_bot_trading_loop(bot_id: str, user_id: str, bot_credentials: Dict
                                  position_size,
                                  list(bot_config.get('open_positions', {}).values()),
                                  bot_config,
+                                 strategy_signal_value or None,
                              )
                             if position_size <= 0:
                                  logger.info(
