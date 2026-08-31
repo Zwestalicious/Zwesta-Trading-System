@@ -36997,19 +36997,12 @@ def _adaptive_signal_threshold_floor(bot_config: Dict[str, Any]) -> int:
         return 20
 
     if broker_name == 'Exness':
-        if is_live:
-            if normalized_profile == 'small_account' or _is_guarded_small_live_account(bot_config, 2.0):
-                return 66
-            if normalized_profile in {'advanced', 'fast_growth'}:
-                return 60
-            return 65
-        if normalized_profile == 'small_account':
-            return 40
-        if normalized_profile in {'advanced', 'fast_growth'}:
-            return 35
-        # Balanced/beginner: raise floor from 35-40 to 45 to filter out
-        # low-quality signals that lose more than they win (per trade history analysis)
-        return 45
+        # UNIFIED WITH BINANCE: identical behavior for demo and live
+        return 25
+    if broker_name == 'Binance':
+        # Lower the Binance floor so the scanner can still surface moderate setups
+        # instead of starving the bot on a narrow set of high-quality only signals.
+        return 25
 
     strategy_name = str(bot_config.get('strategy') or '').strip().lower()
     configured_symbols = bot_config.get('symbols') or []

@@ -48,11 +48,8 @@ def process_tick_optimized(
         return None
 
     strength = float(raw_signal.get("strength", 0))
-    threshold = _get_adaptive_threshold(bot_config, regime)
-    if strength < threshold:
-        if strength < (threshold - 10):
-            return None
-        if not _try_ml_override(symbol, market_data, raw_signal, bot_config, threshold):
+    if not _is_strategy_win(strength):
+        if not _try_ml_override(symbol, market_data, raw_signal, bot_config):
             return None
 
     position_size = _calc_base_volume(symbol, bot_config, broker_name, market_data)
@@ -154,18 +151,27 @@ def _get_drawdown_throttle_cached(bot_config):
     return 1.0
 
 
+def _adaptive_signal_threshold_floor(bot_config=None):
+    """UNIFIED FOR BINANCE + EXNESS - Demo will work same as Live"""
+    return 25
+
+
+def _get_ml_threshold():
+    """UNIFIED ML threshold for both brokers"""
+    return 0.55
+
+
+def _is_ml_win(p_win):
+    return p_win >= _get_ml_threshold()
+
+
+def _is_strategy_win(strength):
+    return strength >= _adaptive_signal_threshold_floor()
+
+
 def _get_adaptive_threshold(bot_config, regime):
-    profile = str(bot_config.get("trading_profile", "")).lower()
-    base = 58 if "quick" in profile or "scalp" in profile else 65
-    if regime == "CHOP_HIGH_VOL":
-        base += 5 if "binance" in str(bot_config.get("broker", "")).lower() else 10
-    elif "TREND" in regime:
-        base -= 5
-    return base
-
-
-def _check_broker_limits_fast(bot_config, symbol, broker_name):
-    return True
+    """Legacy compatibility — now delegates to unified floor."""
+    return _adaptive_signal_threshold_floor(bot_config)
 
 
 def _try_ml_override(symbol, market_data, raw_signal, bot_config, threshold):
@@ -173,9 +179,8 @@ def _try_ml_override(symbol, market_data, raw_signal, bot_config, threshold):
         return False
     try:
         eval_result = _ml_pipeline.evaluate_entry(symbol, market_data, raw_signal, [])
-        conf = float(eval_result.get("confidence", 0))
-        limit = 0.70 if "binance" in str(bot_config.get("broker", "")).lower() else 0.78
-        return conf > limit
+        p_win = float(eval_result.get("signal_score", {}).get("p_win", 0)) / 100.0
+        return _is_ml_win(p_win)
     except Exception:
         return False
 
