@@ -4681,10 +4681,13 @@ def _resolve_ml_confidence_threshold(
     configured = _safe_float((bot_config or {}).get('mlAutoExecuteConfidence'), 0.0)
     if configured > 0:
         return configured
+    env_configured = _safe_float(os.getenv('ML_AUTO_EXECUTE_CONFIDENCE'), 0.0)
+    if env_configured > 0:
+        return env_configured
     try:
         from ml_pipeline import get_ml_pipeline
         pipeline = get_ml_pipeline()
-        base_threshold = 60.0
+        base_threshold = 55.0
         if pipeline and getattr(pipeline, 'anomaly', None) and getattr(pipeline.anomaly, 'win_history', None):
             history = pipeline.anomaly.win_history
             if len(history) >= 20:
