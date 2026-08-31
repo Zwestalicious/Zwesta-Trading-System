@@ -4417,7 +4417,10 @@ def _score_signal_setup(
     ensemble_p = _ensemble_entry_probability(
         symbol, market_data, direction, strength, strategy_name, bot_config
     )
-    if ensemble_p < 0.30 and score < 8.5 and not range_strategy:
+    broker_name = canonicalize_broker_name(
+        bot_config.get('brokerName') or bot_config.get('broker_type') or bot_config.get('broker') or ''
+    )
+    if broker_name != 'Binance' and ensemble_p < 0.30 and score < 8.5 and not range_strategy:
         regime_allowed = False
         reasons.append('Ensemble probability too low (%.2f)' % ensemble_p)
 
